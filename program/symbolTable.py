@@ -31,7 +31,7 @@ class Symbol_table():
         self.children = [] #Guarda los elementos hijos
         self.scope = "Global" if parent is None else scope
 
-    def insert_value(self,identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim):
+    def insert_symbol(self,identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim):
         if identifier in self.elements.keys():
             return False
         self.elements[identifier] = Register(identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim)
