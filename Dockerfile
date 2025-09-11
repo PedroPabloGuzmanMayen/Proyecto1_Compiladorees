@@ -65,16 +65,5 @@ COPY requirements.txt .
 # Not production-intended, never do this, this is just a simple example
 RUN pip install -r requirements.txt --break-system-packages 
 
-# Set user
-ARG USER=appuser
-ARG UID=1001
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "$(pwd)" \
-    --no-create-home \
-    --uid "${UID}" \
-    "${USER}"
-USER ${UID}
 
 WORKDIR /program

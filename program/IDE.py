@@ -70,7 +70,7 @@ class PythonIDE:
             ('Cortar', self.cut_text, 'cut'),
             ('Copiar', self.copy_text, 'copy'),
             ('Pegar', self.paste_text, 'paste'),
-            ('Ejecutar', self.run_python, 'run')
+            ('Ejecutar', self.run_docker_compiscript, 'run')
         ]
         # Left group: first four are file ops, then separators, then edit ops, then run
         for text, cmd, icon_name in btn_configs[:4]:
@@ -99,9 +99,9 @@ class PythonIDE:
         run_icon = self.load_icon('run')
         if run_icon:
             self.run_button = tk.Button(self.header_frame, image=run_icon, text='Ejecutar', compound='left',
-                                command=self.run_python, bg='#0d7377', fg='white', relief='flat', padx=10)
+                                command=self.run_docker_compiscript, bg='#0d7377', fg='white', relief='flat', padx=10)
         else:
-            self.run_button = tk.Button(self.header_frame, text="▶ Ejecutar", command=self.run_python,
+            self.run_button = tk.Button(self.header_frame, text="▶ Ejecutar", command=self.run_docker_compiscript,
                                 bg='#0d7377', fg='white', relief='flat', padx=10)
         self.run_button.pack(side='left', padx=2)
         
@@ -233,7 +233,7 @@ class PythonIDE:
         self.root.bind('<Control-o>', lambda e: self.open_file())
         self.root.bind('<Control-s>', lambda e: self.save_file())
         self.root.bind('<Control-Shift-S>', lambda e: self.save_as_file())
-        self.root.bind('<F5>', lambda e: self.run_python())
+        self.root.bind('<F5>', lambda e: self.run_docker_compiscript())
         
         # Window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -409,26 +409,38 @@ class PythonIDE:
             pass
 
     # ---------------- Running code ----------------
-    def run_python(self):
-        """Run the current Python file or (if Compiscript project) run inside Docker and stream output."""
+    def run_docker_compiscript(self):
+        """Ejecutar Compiscript dentro de Docker"""
+        # Si no hay archivo abierto, forzamos program.cps
+        cps_file = "program.cps"
+
+        # Guardar archivo actual si estaba editando algo
         if not self.file_saved:
             self.save_file()
-            if not self.file_saved:
-                return 
-        
-        project_has_driver = os.path.exists(os.path.join(self.current_directory, 'Driver.py'))
-        project_has_program = os.path.exists(os.path.join(self.current_directory, 'program.cps'))
-        
-        if project_has_driver or project_has_program:
-            self.append_console("\n=== Ejecutando dentro de Docker (csp-image) ===\n")
-            self.run_in_docker()
-        else:
-            if self.current_file and self.current_file.endswith('.py'):
-                self.append_console(f"\n=== Ejecutando local: {os.path.basename(self.current_file)} ===\n")
-                self.run_local_python(self.current_file)
+        try:
+            # Comando que ejecuta: compilar gramática y luego correr Driver.py
+            docker_cmd = [
+                "docker", "run", "--rm", "-v",
+                f"{self.current_directory}:/program", "csp-image",
+                "bash", "-c",
+                "antlr -Dlanguage=Python3 Compiscript.g4 && python3 Driver.py program.cps"
+            ]
+            result = subprocess.run(
+                docker_cmd,
+                capture_output=True,
+                text=True
+            )
+            output = result.stdout
+            errors = result.stderr
+            if result.returncode == 0:
+                self.status_label.config(text="Ejecución completada (sin errores)")
+                messagebox.showinfo("Ejecución correcta", output if output else "✅ Sin errores")
             else:
-                messagebox.showwarning("Advertencia", "Guarda el archivo como .py o coloca Driver.py/program.cps en el directorio del proyecto para ejecutar.")
-                return
+                self.status_label.config(text="Ejecución con errores")
+                messagebox.showerror("Errores en ejecución", errors or output)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo ejecutar en Docker:\n{str(e)}")
+    
 
     def append_console(self, text):
         """Append text to the output_console in a thread-safe manner."""
