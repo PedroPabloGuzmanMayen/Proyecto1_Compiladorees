@@ -66,33 +66,57 @@ class semantic_analyzer(CompiscriptVisitor):
         """Infiere el tipo de una expresión"""
         if not ctx:
             return None
-            
-        # Si es un literal
-        if hasattr(ctx, 'literalExpr') and ctx.literalExpr():
+        # Literales
+        if hasattr(ctx, "literalExpr") and ctx.literalExpr():
             literal = ctx.literalExpr()
-            if literal.Literal():
-                literal_text = literal.Literal().getText()
-                if literal_text.isdigit():
-                    return "integer", {}
-                elif literal_text.startswith('"') and literal_text.endswith('"'):
-                    return "string", {}
-            elif literal.getText() == "true" or literal.getText() == "false":
-                return "boolean", {}
-            elif literal.getText() == "null":
-                return "null", {}
-            elif literal.arrayLiteral():
-                return "array", {}
-                
-        # Si es un identificador
-        if hasattr(ctx, 'leftHandSide') and ctx.leftHandSide():
+            if literal.IntegerLiteral():
+                return "integer"
+            if literal.BooleanLiteral():
+                return "boolean"
+            if literal.StringLiteral():
+                return "string"
+        # Identificadores
+        if hasattr(ctx, "leftHandSide") and ctx.leftHandSide():
             lhs = ctx.leftHandSide()
             if lhs.primaryAtom() and lhs.primaryAtom().Identifier():
                 var_name = lhs.primaryAtom().Identifier().getText()
                 symbol = self.current_table.lookup_global(var_name)
-                if symbol:
-                    return symbol.type
-                    
-        return None  # Tipo desconocido
+                if not symbol:
+                    self.add_error(ctx, f"Variable '{var_name}' no declarada")
+                    return None
+                return symbol.type
+        # Si es una operación (delegar al visitor)
+        if hasattr(ctx, "binaryExpr") and ctx.binaryExpr():
+            return self.visitBinaryExpr(ctx.binaryExpr())
+        return None
+
+    def visitBinaryExpr(self, ctx):
+        left_type = self.infer_expression_type(ctx.left)
+        right_type = self.infer_expression_type(ctx.right)
+        op = ctx.op.text
+    
+        # Casos aritméticos
+        if op in ["+", "-", "*", "/", "%"]:
+            if left_type != "integer" or right_type != "integer":
+                self.add_error(ctx, f"Operador {op} solo válido para enteros, no {left_type} y {right_type}")
+            return "integer"
+        # Comparaciones (devuelven boolean)
+        if op in ["<", "<=", ">", ">="]:
+            if left_type != "integer" or right_type != "integer":
+                self.add_error(ctx, f"Comparación {op} solo válida para enteros")
+            return "boolean"
+        # Igualdad 
+        if op in ["==", "!="]:
+            if left_type != right_type:
+                self.add_error(ctx, f"No se puede comparar {left_type} con {right_type}")
+            return "boolean"
+        # Booleanos
+        if op in ["&&", "||"]:
+            if left_type != "boolean" or right_type != "boolean":
+                self.add_error(ctx, f"Operador {op} solo válido para booleanos, no {left_type} y {right_type}")
+            return "boolean"
+        return None
+    
 
     def handle_array_elements_type(self):
         pass
