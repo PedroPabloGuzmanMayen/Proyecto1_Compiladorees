@@ -3,6 +3,7 @@ from symbolTable import Symbol_table, Register
 from CompiscriptLexer import CompiscriptLexer
 from CompiscriptParser import CompiscriptParser
 from CompiscriptVisitor import CompiscriptVisitor
+import re
 
 
 class semantic_analyzer(CompiscriptVisitor):
@@ -15,6 +16,9 @@ class semantic_analyzer(CompiscriptVisitor):
         self.current_function = None
         self.errors = []
         self.in_loop = 0  # Para verificar break/continue
+        self.while_scope_counter = 0
+        self.for_scope_counter = 0
+        self.if_statement_scope_counter = 0
 
 
     def enter_scope(self, scope_name):
@@ -63,33 +67,46 @@ class semantic_analyzer(CompiscriptVisitor):
         return base_type, dimensions
     
     def infer_expression_type(self, ctx):
-        """Infiere el tipo de una expresión"""
+        """Infiere el tipo de una expresión de forma lexemática y segura."""
         if not ctx:
             return None
-        # Literales
-        if hasattr(ctx, "literalExpr") and ctx.literalExpr():
-            literal = ctx.literalExpr()
-            if literal.IntegerLiteral():
-                return "integer"
-            if literal.BooleanLiteral():
-                return "boolean"
-            if literal.StringLiteral():
-                return "string"
-        # Identificadores
-        if hasattr(ctx, "leftHandSide") and ctx.leftHandSide():
-            lhs = ctx.leftHandSide()
-            if lhs.primaryAtom() and lhs.primaryAtom().Identifier():
-                var_name = lhs.primaryAtom().Identifier().getText()
-                symbol = self.current_table.lookup_global(var_name)
-                if not symbol:
-                    self.add_error(ctx, f"Variable '{var_name}' no declarada")
-                    return None
-                return symbol.type
-        # Si es una operación (delegar al visitor)
-        if hasattr(ctx, "binaryExpr") and ctx.binaryExpr():
-            return self.visitBinaryExpr(ctx.binaryExpr())
+
+        text = ctx.getText()
+
+        # Literales primarios
+        if re.fullmatch(r"\d+", text):
+            return "integer"
+        if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+            return "string"
+        if text in ("true", "false"):
+            return "boolean"
+        if text == "null":
+            return "null"
+
+        # Arreglo literal (detección superficial).
+        # Nota: puedes mejorar esto luego para inferir tipo de elementos.
+        if text.startswith("[") and text.endswith("]"):
+            return "array", {}
+
+        # Identificador simple → consulta en la tabla de símbolos
+        if re.fullmatch(r"[A-Za-z_]\w*", text):
+            symbol = self.current_table.lookup_global(text)
+            if symbol:
+                return symbol.type  # p.ej., "integer" o "string"
+
+        # Expresiones compuestas (e.g., a+b) o casos no contemplados
         return None
 
+    def handle_array_elements_type(self):
+        pass
+
+    # Visit a parse tree produced by CompiscriptParser#program.
+    def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
+        """Visita el programa principal"""
+        for statement in ctx.statement():
+            self.visit(statement)
+        return None
+    
     def visitBinaryExpr(self, ctx):
         left_type = self.infer_expression_type(ctx.left)
         right_type = self.infer_expression_type(ctx.right)
@@ -117,13 +134,9 @@ class semantic_analyzer(CompiscriptVisitor):
             return "boolean"
         return None
     
-
-    def handle_array_elements_type(self):
-        pass
-
-    # Visit a parse tree produced by CompiscriptParser#program.
-    def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
-        """Visita el programa principal"""
+    #Visit a parse tree produced by CompiscriptParser#block
+    def visitBlock(self, ctx:CompiscriptParser.BlockContext):
+        """Visita un bloque de código"""
         for statement in ctx.statement():
             self.visit(statement)
         return None
@@ -138,7 +151,7 @@ class semantic_analyzer(CompiscriptVisitor):
         if not ctx.typeAnnotation():
             raise Exception(f"ERROR: la variable '{var_name}' debe tener tipo explícito")
 
-        var_type, dimensions = self.parse_type(ctx.typeAnnotation().type())
+        var_type, dimensions = self.parse_type(ctx.typeAnnotation().type_())
 
         if ctx.initializer():
             inferred_type = self.infer_expression_type(ctx.initializer().expression())
@@ -150,12 +163,15 @@ class semantic_analyzer(CompiscriptVisitor):
                 raise Exception(f"ERROR: inicializador '{inferred_type}' incompatible con tipo '{var_type}'")
 
         if not self.current_table.insert_symbol(
-            lexeme=var_name,
             identifier=var_name,
             type=var_type,
+            scope = self.current_table.scope,
             line_pos=line_num,
             is_mutable=True,
             kind="variable",
+            params =[],
+            return_type = None,
+            parent_class= None,
             dim=dimensions
         ):
             raise Exception(f"ERROR:Variable '{var_name}' ya declarada en este ámbito")
@@ -167,37 +183,37 @@ class semantic_analyzer(CompiscriptVisitor):
     
         var_name = ctx.Identifier().getText()
         line_num = self.get_line_number(ctx)
-        
-        # Verificar redeclaración
-        if self.current_table.lookup_local(var_name):
-            self.add_error(ctx, f"Constante '{var_name}' ya declarada en este ámbito")
-            return
-        
-        # Obtener tipo
-        var_type = None
-        dimensions = 0
-        if ctx.typeAnnotation():
-            var_type, dimensions = self.parse_type(ctx.typeAnnotation().type())
-        
-        # Las constantes DEBEN tener inicializador
+
+        if not ctx.typeAnnotation():
+            raise Exception(f"ERROR: la variable '{var_name}' debe tener tipo explícito")
+
+        var_type, dimensions = self.parse_type(ctx.typeAnnotation().type_())
+
+        if not ctx.expression():
+            raise Exception(f"ERROR: para declarar una constante debes siempre especificar un valor inicial")
+
+
         inferred_type = self.infer_expression_type(ctx.expression())
-        self.visit(ctx.expression())
-        
-        # Si no hay tipo explícito, usar el inferido
-        if not var_type and inferred_type:
-            var_type = inferred_type
-        
-        # Declarar la constante
-        if self.current_table.insert_symbol(
-            lexeme=var_name,
+       
+
+        if inferred_type == "array" and dimensions != 0:
+            pass
+        if var_type != inferred_type:
+            raise Exception(f"ERROR: inicializador '{inferred_type}' incompatible con tipo '{var_type}'")
+
+        if not self.current_table.insert_symbol(
             identifier=var_name,
             type=var_type,
+            scope = self.current_table.scope,
             line_pos=line_num,
-            is_mutable=False,  # Es constante
+            is_mutable=False,
             kind="variable",
+            params =[],
+            return_type = None,
+            parent_class= None,
             dim=dimensions
-        ) == False:
-            raise Exception(f"ERROR: {var_name} ya está definida en este ámbito")
+        ):
+            raise Exception(f"ERROR:Variable '{var_name}' ya declarada en este ámbito")
             
 
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
