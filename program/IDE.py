@@ -410,36 +410,64 @@ class PythonIDE:
 
     # ---------------- Running code ----------------
     def run_docker_compiscript(self):
-        """Ejecutar Compiscript dentro de Docker"""
-        # Si no hay archivo abierto, forzamos program.cps
-        cps_file = "program.cps"
-
-        # Guardar archivo actual si estaba editando algo
+        """Ejecutar Compiscript dentro de Docker y mostrar stdout/stderr en la consola integrada"""
+        docker_exe = shutil.which('docker')
+        if not docker_exe:
+            messagebox.showerror("Error", "Docker no está instalado o no está en PATH.")
+            return
+        
+        image_name = "csp-image"
+        try:
+            img_check = subprocess.run([docker_exe, 'images', '-q', image_name],
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if not img_check.stdout.strip():
+                msg = (f"La imagen Docker '{image_name}' no se encontró.\n\n"
+                    f"Construye la imagen desde la raíz del proyecto con:\n\n"
+                    f"  docker build --rm . -t {image_name}\n\n"
+                    "Luego vuelve a intentar ejecutar desde el IDE.")
+                messagebox.showwarning("Imagen Docker no encontrada", msg)
+                self.append_console(f"\n[WARN] Imagen Docker '{image_name}' no encontrada. "
+                                    f"Construirla con:\n  docker build --rm . -t {image_name}\n")
+                return
+        except Exception as e:
+            messagebox.showerror("Error", f"Error comprobando imágenes Docker: {e}")
+            return
+    
+        host_dir = os.path.abspath(self.current_directory)
+        # aseguramos guardar antes de ejecutar
         if not self.file_saved:
             self.save_file()
-        try:
-            # Comando que ejecuta: compilar gramática y luego correr Driver.py
-            docker_cmd = [
-                "docker", "run", "--rm", "-v",
-                f"{self.current_directory}:/program", "csp-image",
-                "bash", "-c",
-                "antlr -Dlanguage=Python3 Compiscript.g4 && python3 Driver.py program.cps"
-            ]
-            result = subprocess.run(
-                docker_cmd,
-                capture_output=True,
-                text=True
-            )
-            output = result.stdout
-            errors = result.stderr
-            if result.returncode == 0:
-                self.status_label.config(text="Ejecución completada (sin errores)")
-                messagebox.showinfo("Ejecución correcta", output if output else "✅ Sin errores")
-            else:
-                self.status_label.config(text="Ejecución con errores")
-                messagebox.showerror("Errores en ejecución", errors or output)
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo ejecutar en Docker:\n{str(e)}")
+    
+        # Ejecutar ANTLR y luego el Driver.py sobre program.cps
+        inner_cmd = "antlr -Dlanguage=Python3 Compiscript.g4 && python3 test.py program.cps"
+        docker_cmd = [
+            docker_exe, "run", "--rm",
+            "-v", f"{host_dir}:/program",
+            image_name,
+            "bash", "-c", inner_cmd
+        ]
+    
+        def target():
+            try:
+                self.run_button.config(state='disabled')
+                self.append_console("\n=== Iniciando ejecución en Docker ===\n")
+                proc = subprocess.Popen(docker_cmd, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True)
+                self.run_process = proc
+                for line in iter(proc.stdout.readline, ''):
+                    if not line:
+                        break
+                    self.append_console(line)
+                proc.wait()
+                self.append_console(f"\n=== Contenedor finalizado (exit {proc.returncode}) ===\n")
+            except Exception as e:
+                self.append_console(f"\nError al ejecutar en Docker: {e}\n")
+            finally:
+                self.run_button.config(state='normal')
+                self.run_process = None
+    
+        threading.Thread(target=target, daemon=True).start()
+    
     
 
     def append_console(self, text):
