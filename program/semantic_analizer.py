@@ -562,68 +562,63 @@ class semantic_analyzer(CompiscriptVisitor):
     # Visit a parse tree produced by CompiscriptParser#functionDeclaration.
     def visitFunctionDeclaration(self, ctx):
         """Verifica declaraciones de funciones"""
-        try:
-            func_name = ctx.Identifier().getText()
-            line_num = self.get_line_number(ctx)
-            
-            # Procesar parámetros
-            params = []
-            if ctx.parameters():
-                for param_ctx in ctx.parameters().parameter():
-                    param_name = param_ctx.Identifier().getText()
-                    param_type = None
-                    if param_ctx.type():
-                        param_type, _ = self.parse_type(param_ctx.type())
-                    params.append({"name": param_name, "type": param_type})
-            
-            # Obtener tipo de retorno
-            return_type = None
-            if len(ctx.children) > 4:  # Hay tipo de retorno
-                for child in ctx.children:
-                    if hasattr(child, 'type') and child.type():
-                        return_type, _ = self.parse_type(child.type())
-                        break
-            
-            # Declarar la función en el ámbito actual
-            if not self.current_table.insert_symbol(
-                lexeme=func_name,
-                identifier=func_name,
-                line_pos=line_num,
-                kind="function",
-                params=params,
-                return_type=return_type
-            ):
-                raise Exception("ERROR: redeclaración de función")
-            
-            # Entrar al ámbito de la función  b
-            self.enter_scope(f"function_{func_name}")
-            old_function = self.current_function
-            self.current_function = func_name
-            
-            # Declarar parámetros como variables locales
-            for param in params:
-                try:
-                    self.current_table.insert_symbol(
-                        lexeme=param["name"],
-                        identifier=param["name"],
-                        type=param["type"],
-                        line_pos=line_num,
-                        kind="parameter"
-                    )
-                except:
-                    self.add_error(ctx, f"Parámetro '{param['name']}' duplicado")
-            
-            # Visitar el cuerpo de la función
-            if ctx.block():
-                self.visit(ctx.block())
-            
-            # Salir del ámbito
-            self.current_function = old_function
-            self.exit_scope()
-            
-        except Exception as e:
-            self.add_error(ctx, str(e))
 
+        func_name = ctx.Identifier().getText()
+        line_num = self.get_line_number(ctx)
+        
+        # Procesar parámetros
+        params = []
+        if ctx.parameters():
+            for param_ctx in ctx.parameters().parameter():
+                param_name = param_ctx.Identifier().getText()
+                param_type = None
+                if param_ctx.type():
+                    param_type, _ = self.parse_type(param_ctx.type())
+                params.append({"name": param_name, "type": param_type})
+
+        if ctx.type_(): #Verificar si el usuario definio un tipo 
+            function_return_type = self.parse_type(ctx.type_)
+        
+        # Declarar la función en el ámbito actual
+        if not self.current_table.insert_symbol(
+            lidentifier=func_name,
+            type=var_type,
+            scope = self.current_table.scope,
+            line_pos=line_num,
+            is_mutable=False,
+            kind="function",
+            params =[],
+            return_type = None,
+            parent_class= None,
+            dim=dimensions
+        ):
+            raise Exception("ERROR: redeclaración de función")
+        
+        # Entrar al ámbito de la función  b
+        self.enter_scope(f"function_{func_name}")
+        old_function = self.current_function
+        self.current_function = func_name
+        
+        # Declarar parámetros como variables locales
+        for param in params:
+            try:
+                self.current_table.insert_symbol(
+                    lexeme=param["name"],
+                    identifier=param["name"],
+                    type=param["type"],
+                    line_pos=line_num,
+                    kind="parameter"
+                )
+            except:
+                self.add_error(ctx, f"Parámetro '{param['name']}' duplicado")
+        
+        # Visitar el cuerpo de la función
+        if ctx.block():
+            self.visit(ctx.block())
+        
+        # Salir del ámbito
+        self.current_function = old_function
+        self.exit_scope()
 
     # Visit a parse tree produced by CompiscriptParser#parameters.
     def visitParameters(self, ctx:CompiscriptParser.ParametersContext):
