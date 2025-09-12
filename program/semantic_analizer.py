@@ -20,6 +20,10 @@ class semantic_analyzer(CompiscriptVisitor):
         self.for_scope_counter = 0
         self.if_statement_scope_counter = 0
 
+    def add_error(self, ctx, message):
+        """Registra un error con número de línea."""
+        line = self.get_line_number(ctx)
+        self.errors.append(f"ERROR L{line}: {message}")
 
     def enter_scope(self, scope_name):
         new_table = self.current_table.create_child_scope(scope_name)
@@ -215,6 +219,25 @@ class semantic_analyzer(CompiscriptVisitor):
         ):
             raise Exception(f"ERROR:Variable '{var_name}' ya declarada en este ámbito")
             
+
+    def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
+        """Verifica la condición del if y visita los bloques (if y optional else)."""
+        cond_ctx = ctx.expression()
+        cond_type = self.infer_expression_type(cond_ctx)
+        if cond_type is None:
+            self.add_error(ctx, f"No se pudo inferir tipo de la condición del if")
+        elif cond_type != "boolean":
+            self.add_error(ctx, f"Condición de if debe ser boolean (obtenido: {cond_type})")
+
+        # El bloque 'if' es el primer block
+        if getattr(ctx, "block", None):
+            # ctx.block(0) -> bloque del if, ctx.block(1) -> else (si existe)
+            if ctx.block(0):
+                self.visit(ctx.block(0))
+            if len(ctx.block()) > 1 and ctx.block(1):
+                self.visit(ctx.block(1))
+        return None
+
 
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
     def visitTypeAnnotation(self, ctx:CompiscriptParser.TypeAnnotationContext):
