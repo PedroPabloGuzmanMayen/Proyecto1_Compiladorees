@@ -865,7 +865,6 @@ class semantic_analyzer(CompiscriptVisitor):
         return self._set_inferred(ctx, None, 0)
 
 
-
     # Visit a parse tree produced by CompiscriptParser#literalExpr.
     def visitArrayLiteral(self, ctx):
         elems = ctx.expression()

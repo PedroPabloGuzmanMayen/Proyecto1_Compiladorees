@@ -151,6 +151,13 @@ def main():
 
         # ======== NUEVAS: EXP COMPLEJA ========
         ("Mixta: !(1<2 && 3<4) || false", "let b: boolean = !(1 < 2 && 3 < 4) || false;", True),
+
+
+        # ======= CONTINUE INVÁLIDO =====
+        ("Continue inválido",
+         """let x: integer = 2;
+            continue;
+            break;""", True)
     ]
 
     passed = 0
