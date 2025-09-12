@@ -238,6 +238,64 @@ class semantic_analyzer(CompiscriptVisitor):
                 self.visit(ctx.block(1))
         return None
 
+    def visitTryCatchStatement(self, ctx:CompiscriptParser.TryCatchStatementContext):
+        """
+        Estructura de la regla 'try' block 'catch' '(' Identifier ')' block
+        """
+        try:
+            # visitar try block en su propio scope opcional (para aislar variables temporales)
+            if ctx.block(0):
+                self.enter_scope(f"try_{self.get_line_number(ctx)}")
+                self.visit(ctx.block(0))
+                self.exit_scope()
+
+            # catch: declarar identificador en un nuevo scope
+            # el identificador token está como ctx.Identifier()
+            catch_id = None
+            # localizar el identificador: que está después de 'catch' '(' Identifier ')'
+            # dependiendo de la generación, ctx.Identifier() debería devolverlo
+            if ctx.Identifier():
+                catch_id = ctx.Identifier().getText()
+            else:
+                # fallback: intentar obtener de children
+                for ch in ctx.children:
+                    if hasattr(ch, 'getText') and re.fullmatch(r"[A-Za-z_]\w*", ch.getText()):
+                        catch_id = ch.getText()
+                        break
+
+            # crear scope del catch y declarar la variable del catch
+            self.enter_scope(f"catch_{self.get_line_number(ctx)}")
+            if catch_id:
+                inserted = self.current_table.insert_symbol(
+                    identifier=catch_id,
+                    type="exception",
+                    scope=self.current_table.scope,
+                    line_pos=self.get_line_number(ctx),
+                    is_mutable=False,
+                    kind="variable",
+                    params=[],
+                    return_type=None,
+                    parent_class=None,
+                    dim=0
+                )
+                if not inserted:
+                    self.add_error(ctx, f"Identificador de catch '{catch_id}' ya declarado en este ámbito")
+
+            # visitar el bloque del catch 
+            # dependiendo del orden, busca el segundo block
+            if len(ctx.block()) > 1:
+                self.visit(ctx.block(1))
+            else:
+                # si solo hay un block en ctx.block(), entonces el catch block podría ser el primero en otra posición:
+                for b in ctx.block():
+                    self.visit(b)
+
+            # salir del scope de catch
+            self.exit_scope()
+
+        except Exception as e:
+            self.add_error(ctx, str(e))
+        return None
 
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
     def visitTypeAnnotation(self, ctx:CompiscriptParser.TypeAnnotationContext):
