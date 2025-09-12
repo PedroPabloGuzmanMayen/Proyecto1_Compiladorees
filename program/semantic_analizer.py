@@ -243,7 +243,7 @@ class semantic_analyzer(CompiscriptVisitor):
         Estructura de la regla 'try' block 'catch' '(' Identifier ')' block
         """
         try:
-            # visitar try block en su propio scope opcional (para aislar variables temporales)
+            # visitar try block en su propio scope opcional 
             if ctx.block(0):
                 self.enter_scope(f"try_{self.get_line_number(ctx)}")
                 self.visit(ctx.block(0))
@@ -253,7 +253,6 @@ class semantic_analyzer(CompiscriptVisitor):
             # el identificador token está como ctx.Identifier()
             catch_id = None
             # localizar el identificador: que está después de 'catch' '(' Identifier ')'
-            # dependiendo de la generación, ctx.Identifier() debería devolverlo
             if ctx.Identifier():
                 catch_id = ctx.Identifier().getText()
             else:
@@ -282,17 +281,50 @@ class semantic_analyzer(CompiscriptVisitor):
                     self.add_error(ctx, f"Identificador de catch '{catch_id}' ya declarado en este ámbito")
 
             # visitar el bloque del catch 
-            # dependiendo del orden, busca el segundo block
             if len(ctx.block()) > 1:
                 self.visit(ctx.block(1))
             else:
-                # si solo hay un block en ctx.block(), entonces el catch block podría ser el primero en otra posición:
                 for b in ctx.block():
                     self.visit(b)
 
             # salir del scope de catch
             self.exit_scope()
 
+        except Exception as e:
+            self.add_error(ctx, str(e))
+        return None
+
+    def visitSwitchStatement(self, ctx:CompiscriptParser.SwitchStatementContext):
+        """
+        Verifica que cada case sea compatible con la expresión del switch y que no haya case duplicados
+        """
+        try:
+            switch_expr = ctx.expression()
+            switch_type = self.infer_expression_type(switch_expr)
+            if switch_type is None:
+                self.add_error(ctx, "No se pudo inferir tipo de la expresión del switch")
+
+            seen_cases = set()
+            # ctx.switchCase() # devuelve lista de case contexts
+            for case_ctx in list(ctx.switchCase()):
+                case_expr = case_ctx.expression()
+                case_type = self.infer_expression_type(case_expr)
+                if switch_type and case_type and (case_type != switch_type):
+                    self.add_error(case_ctx, f"Case de tipo {case_type} incompatible con switch de tipo {switch_type}")
+                case_text = case_expr.getText()
+                if case_text in seen_cases:
+                    self.add_error(case_ctx, f"Case duplicado: {case_text}")
+                else:
+                    seen_cases.add(case_text)
+
+                for st in case_ctx.statement():
+                    self.visit(st)
+
+            # default 
+            if ctx.defaultCase():
+                # defaultCase: visit its statements
+                for st in ctx.defaultCase().statement():
+                    self.visit(st)
         except Exception as e:
             self.add_error(ctx, str(e))
         return None
