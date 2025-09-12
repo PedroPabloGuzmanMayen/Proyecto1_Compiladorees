@@ -434,6 +434,39 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, str(e))
         return None
 
+    def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
+        """Verifica la condición del while y marca que estamos dentro de un bucle."""
+        cond_ctx = ctx.expression()
+        cond_type = self.infer_expression_type(cond_ctx)
+        if cond_type is None:
+            self.add_error(ctx, f"No se pudo inferir tipo de la condición del while")
+        elif cond_type != "boolean":
+            self.add_error(ctx, f"Condición de while debe ser boolean (obtenido: {cond_type})")
+
+        self.in_loop += 1
+        # visitar el bloque del while 
+        if ctx.block():
+            self.visit(ctx.block())
+        self.in_loop -= 1
+        return None
+
+    def visitDoWhileStatement(self, ctx:CompiscriptParser.DoWhileStatementContext):
+        """Visita el bloque do y luego verifica la condición del while."""
+        self.in_loop += 1
+        if ctx.block():
+            self.visit(ctx.block())
+
+        cond_ctx = ctx.expression()
+        cond_type = self.infer_expression_type(cond_ctx)
+        if cond_type is None:
+            self.add_error(ctx, f"No se pudo inferir tipo de la condición del do-while")
+        elif cond_type != "boolean":
+            self.add_error(ctx, f"Condición de do-while debe ser boolean (obtenido: {cond_type})")
+
+        self.in_loop -= 1
+        return None
+
+
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
     def visitTypeAnnotation(self, ctx:CompiscriptParser.TypeAnnotationContext):
         return self.visitChildren(ctx)
