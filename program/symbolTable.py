@@ -1,3 +1,4 @@
+import sys
 class Register:
     def __init__(self, identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim, has_constructor = False, constructor_params = []):
         self.identifier = identifier #Nombre de l función, variable o clase 
@@ -54,20 +55,12 @@ class Symbol_table():
         return child
         
 
-    def print_table(self, indent=0):
-        print(" " * indent + f"Scope: {self.scope}")
-        for identifier, reg in self.elements.items():
-            print(" " * (indent + 2) + f"- {identifier}:")
-            print(" " * (indent + 4) + f"Tipo: {reg.type}")
-            print(" " * (indent + 4) + f"Mutable: {reg.is_mutable}")
-            print(" " * (indent + 4) + f"Clase Padre: {reg.parent_class}")
-            print(" " * (indent + 4) + f"Kind: {reg.kind}")
-            print(" " * (indent + 4) + f"Línea: {reg.line_pos}")
-            if reg.kind == "función":
-                print(" " * (indent + 4) + f"Params: {reg.params}")
-                print(" " * (indent + 4) + f"Return: {reg.return_type}")
-            if reg.dim > 0:
-                print(" " * (indent + 4) + f"Dimensión array: {reg.dim}")
-
-        for child in self.children:
-            child.print_table(indent + 2)
+    def print_table(self, output=sys.stdout):
+        for sym in self.elements.values():
+            print(f"  - {sym.identifier}:")
+            print(f"      Tipo: {sym.type}")
+            print(f"      Dimensión: {sym.dim}")
+            print(f"      Mutable: {sym.is_mutable}")
+            print(f"      Clase Padre: {sym.parent_class}")
+            print(f"      Kind: {sym.kind}")
+            print(f"      Línea: {sym.line_pos}")
