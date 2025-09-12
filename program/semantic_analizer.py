@@ -353,12 +353,6 @@ class semantic_analyzer(CompiscriptVisitor):
     def visitPrintStatement(self, ctx:CompiscriptParser.PrintStatementContext):
         return self.visitChildren(ctx)
 
-
-    # Visit a parse tree produced by CompiscriptParser#ifStatement.
-    def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by CompiscriptParser#whileStatement.
     def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
         return self.visitChildren(ctx)
@@ -391,16 +385,6 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
     def visitReturnStatement(self, ctx:CompiscriptParser.ReturnStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by CompiscriptParser#tryCatchStatement.
-    def visitTryCatchStatement(self, ctx:CompiscriptParser.TryCatchStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by CompiscriptParser#switchStatement.
-    def visitSwitchStatement(self, ctx:CompiscriptParser.SwitchStatementContext):
         return self.visitChildren(ctx)
 
 
