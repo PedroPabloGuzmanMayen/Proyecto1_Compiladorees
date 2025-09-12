@@ -38,40 +38,14 @@ class semantic_analyzer(CompiscriptVisitor):
         return self.current_table
     
     def parse_type(self, type_ctx):
-        """Parsea una anotación de tipo y retorna (tipo_base, dimensiones)"""
         if not type_ctx:
             return None, 0
-            
-        base_type = None
-        dimensions = 0
-        
-        # Obtener tipo base
-        if type_ctx.baseType():
-            base_type_text = type_ctx.baseType().getText()
-            # Mapear tipos de la gramática
-            if re.match(r"(integer(\[\])*", base_type_text):
-                base_type = "int_array"
-            elif re.match(r"(string(\[\])*", base_type_text):
-                base_type = "string_array"
-            elif re.match(r"(boolean(\[\])*", base_type_text):
-                base_type = "boolean_array"
-            elif base_type_text == "integer":
-                base_type = "integer"
-            elif base_type_text == "boolean":
-                base_type = "boolean"
-            elif base_type_text == "string":
-                base_type = "string"
-            else:
-                # Es un identificador de clase
-                base_type = base_type_text
-        
-        # Contar dimensiones de array
-        dimensions = len(type_ctx.children) - 1 if hasattr(type_ctx, 'children') else 0
-        for child in type_ctx.children if hasattr(type_ctx, 'children') else []:
-            if child.getText() == "[]":
-                dimensions += 1
-                
-        return base_type, dimensions
+        text = type_ctx.getText()               # p.ej. integer[][], MyClass[]
+        dim = text.count('[]')
+        base = text.replace('[]','')
+        return base, dim
+
+
     
     def infer_expression_type(self, ctx):
         """Infiere el tipo de una expresión de forma lexemática y segura."""
@@ -102,41 +76,44 @@ class semantic_analyzer(CompiscriptVisitor):
 
         return None
 
-    def handle_array_elements_type(self):
-        pass
+    def infer_type_and_dim(self, expr_ctx):
+        text = expr_ctx.getText()
+    
+        if re.fullmatch(r"\d+", text):   return "integer", 0
+        if text in ("true","false"):     return "boolean", 0
+        if len(text)>=2 and text[0]=='"' and text[-1]=='"': return "string", 0
+        if text=="null":                 return "null", 0
+
+        if text.startswith('[') and text.endswith(']'):
+            return self._analyze_array_literal(expr_ctx)
+
+        if re.fullmatch(r"[A-Za-z_]\w*", text):
+            sym = self.current_table.lookup_global(text)
+            if sym: return getattr(sym,'type',None), getattr(sym,'dim',0)
+
+        return None, 0
+    
+    def _analyze_array_literal(self, arr_ctx):
+        elems = list(getattr(arr_ctx, "expression", lambda: [])())
+        if not elems:
+            return None, 1  
+        bases, dims = [], []
+        for e in elems:
+            b, d = self.infer_type_and_dim(e)
+            bases.append(b); dims.append(d)
+        known = [b for b in bases if b is not None]
+        if known and any(b!=known[0] for b in known):
+            self.add_error(arr_ctx, f"Literal de arreglo heterogéneo: {set(known)}")
+        if any(d!=dims[0] for d in dims):  
+            self.add_error(arr_ctx, "Arreglo no rectangular")
+        return (known[0] if known else None), 1 + (dims[0] if dims else 0)
+
 
     # Visit a parse tree produced by CompiscriptParser#program.
     def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
         """Visita el programa principal"""
         for statement in ctx.statement():
             self.visit(statement)
-        return None
-    
-    def visitBinaryExpr(self, ctx):
-        left_type = self.infer_expression_type(ctx.left)
-        right_type = self.infer_expression_type(ctx.right)
-        op = ctx.op.text
-    
-        # Casos aritméticos
-        if op in ["+", "-", "*", "/", "%"]:
-            if left_type != "integer" or right_type != "integer":
-                self.add_error(ctx, f"Operador {op} solo válido para enteros, no {left_type} y {right_type}")
-            return "integer"
-        # Comparaciones (devuelven boolean)
-        if op in ["<", "<=", ">", ">="]:
-            if left_type != "integer" or right_type != "integer":
-                self.add_error(ctx, f"Comparación {op} solo válida para enteros")
-            return "boolean"
-        # Igualdad 
-        if op in ["==", "!="]:
-            if left_type != right_type:
-                self.add_error(ctx, f"No se puede comparar {left_type} con {right_type}")
-            return "boolean"
-        # Booleanos
-        if op in ["&&", "||"]:
-            if left_type != "boolean" or right_type != "boolean":
-                self.add_error(ctx, f"Operador {op} solo válido para booleanos, no {left_type} y {right_type}")
-            return "boolean"
         return None
     
     #Visit a parse tree produced by CompiscriptParser#block
@@ -159,14 +136,15 @@ class semantic_analyzer(CompiscriptVisitor):
         var_type, dimensions = self.parse_type(ctx.typeAnnotation().type_())
 
         if ctx.initializer():
-            inferred_type = self.infer_expression_type(ctx.initializer().expression())
-            self.visit(ctx.initializer().expression())
+            inferred_type, inferred_dim = self.infer_type_and_dim(ctx.initializer().expression())
 
-            if inferred_type == "array" and dimensions != 0:
-                pass
-            if var_type != inferred_type:
-                raise Exception(f"ERROR: inicializador '{inferred_type}' incompatible con tipo '{var_type}'")
+            if inf_base is None and inferred_dim > 0:
+                inf_base = var_type
 
+            if var_type and var_type != inf_base:
+                self.add_error(ctx, f"Tipo incompatible: {var_type} vs {inf_base}")
+            if dimensions and dimensions != inferred_dim:
+                self.add_error(ctx, f"Dimensión incompatible: {var_type} vs {inferred_dim}")
         if not self.current_table.insert_symbol(
             identifier=var_name,
             type=var_type,
@@ -523,10 +501,6 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#printStatement.
     def visitPrintStatement(self, ctx:CompiscriptParser.PrintStatementContext):
-        return self.visitChildren(ctx)
-
-    # Visit a parse tree produced by CompiscriptParser#whileStatement.
-    def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
         return self.visitChildren(ctx)
 
 
