@@ -48,7 +48,9 @@ class Symbol_table():
         return None
     
     def create_child_scope(self, scope_name):
-        return Symbol_table(parent=self, scope_name=scope_name)
+        child = Symbol_table(parent=self, scope_name=scope_name)
+        self.children.append(child)
+        return child
     
 
     def print_table(self, indent=0):
