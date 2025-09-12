@@ -194,11 +194,11 @@ class semantic_analyzer(CompiscriptVisitor):
 
 
         # Visit a parse tree produced by CompiscriptParser#program.
-        def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
-            """Visita el programa principal"""
-            for statement in ctx.statement():
-                self.visit(statement)
-            return None
+    def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
+        """Visita el programa principal"""
+        for statement in ctx.statement():
+            self.visit(statement)
+        return None
     
     #Visit a parse tree produced by CompiscriptParser#block
     def visitBlock(self, ctx:CompiscriptParser.BlockContext):
@@ -416,32 +416,28 @@ class semantic_analyzer(CompiscriptVisitor):
 
                 owner_type, owner_dim = self.infer_type_and_dim(left_expr)
                 if owner_type is None:
-                    self.add_error(ctx, "No se pudo inferir el tipo del objeto al asignar propiedad")
-                    self.visit(right_expr)
-                    return None
+                    if left_expr.getText() == "this" and self.current_class:
+                        owner_type, owner_dim = self.current_class, 0
+                    else:
+                        self.add_error(ctx, "No se pudo inferir el tipo del objeto al asignar propiedad")
+                        self.visit(right_expr)
+                        return None
                 if owner_dim != 0:
                     self.add_error(ctx, f"No se pueden asignar propiedades en arrays (tipo {owner_type}[{owner_dim}])")
                     self.visit(right_expr)
                     return None
-
-                if not self._lookup_class(owner_type):
-                    self.add_error(ctx, f"Tipo '{owner_type}' no es una clase con propiedades")
-                    self.visit(right_expr)
-                    return None
-
+                
                 mem = self._lookup_member(owner_type, prop_name)
                 if not mem:
                     self.add_error(ctx, f"Clase '{owner_type}' no tiene propiedad '{prop_name}'")
                     self.visit(right_expr)
                     return None
-
-              
+                
                 if getattr(mem, "kind", "") in ("method", "function", "constructor"):
                     self.add_error(ctx, f"No se puede asignar al método '{owner_type}.{prop_name}'")
                     self.visit(right_expr)
                     return None
-
-         
+                
                 rhs_t, rhs_d = self.infer_type_and_dim(right_expr)
                 if mem.type and rhs_t and mem.type != rhs_t:
                     self.add_error(ctx, f"Tipo incompatible al asignar '{owner_type}.{prop_name}': "
@@ -450,36 +446,9 @@ class semantic_analyzer(CompiscriptVisitor):
                     self.add_error(ctx, f"Dimensión incompatible al asignar '{owner_type}.{prop_name}': "
                                         f"esperada {mem.dim or 0}, recibida {rhs_d or 0}")
 
+ 
                 self.visit(left_expr)
                 self.visit(right_expr)
-                return None
-
-            else:
-                var_name = ctx.Identifier().getText()
-                rhs = ctx.expression(0)
-                symbol = self.current_table.lookup_global(var_name)
-                if not symbol:
-                    self.add_error(ctx, f"Asignación a variable no declarada '{var_name}'")
-                    self.visit(rhs)
-                    return None
-
-                is_mutable = getattr(symbol, 'is_mutable', getattr(symbol, 'mutable', True))
-                if not is_mutable:
-                    self.add_error(ctx, f"Intento de asignar a constante/variable no mutable '{var_name}'")
-
-                inferred_t, inferred_d = self.infer_expression_type(rhs)
-                if inferred_t is None and inferred_d == 0:
-                    self.visit(rhs)
-                    self.add_error(ctx, f"No se pudo inferir tipo del lado derecho en la asignación a '{var_name}'")
-                    return None
-
-                var_type = getattr(symbol, 'type', None)
-                var_dim  = getattr(symbol, 'dim', 0)
-                if var_type and (inferred_t != var_type or inferred_d != var_dim):
-                    self.add_error(ctx, f"Tipo incompatible en asignación a '{var_name}': "
-                                        f"{inferred_t}[{inferred_d}] vs {var_type}[{var_dim}]")
-
-                self.visit(rhs)
                 return None
 
         except Exception as e:
