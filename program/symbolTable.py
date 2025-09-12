@@ -1,5 +1,5 @@
 class Register:
-    def __init__(self, identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim):
+    def __init__(self, identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim, has_constructor = False, constructor_params = []):
         self.identifier = identifier #Nombre de l función, variable o clase 
         self.type = type # Integer, String, Boolean o Null, si es una función entonces es None
         self.scope = scope
@@ -14,12 +14,13 @@ class Register:
         #Solo para clases 
 
         self.parent_class = parent_class #Indica de quien se hereda
+        self.has_constructor = has_constructor
+        self.constructor_params = constructor_params
          
         # Solo para arrays
 
         self.dim = dim #Si es 1, es un array 1D, si es 2 es un array 2D
-
-
+        
 """
 Consideraciones: cualquier variable o función dentro de el ámbito de una clase se v a considerar como un atributo o método de la clase 
 """
@@ -48,10 +49,10 @@ class Symbol_table():
         return None
     
     def create_child_scope(self, scope_name):
-        child = Symbol_table(parent=self, scope_name=scope_name)
+        child = Symbol_table(parent=self, scope=scope_name)
         self.children.append(child)
         return child
-    
+        
 
     def print_table(self, indent=0):
         print(" " * indent + f"Scope: {self.scope}")

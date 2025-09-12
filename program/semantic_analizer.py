@@ -22,6 +22,14 @@ class semantic_analyzer(CompiscriptVisitor):
         line = self.get_line_number(ctx)
         self.errors.append(f"ERROR L{line}: {message}")
 
+    def _set_inferred(self, ctx, base, dim=0):
+        setattr(ctx, "_type_base", base)
+        setattr(ctx, "_type_dim", dim)
+        return base, dim
+
+    def _get_inferred(self, ctx):
+        return getattr(ctx, "_type_base", None), getattr(ctx, "_type_dim", 0)
+
     def enter_scope(self, scope_name):
         new_table = self.current_table.create_child_scope(scope_name)
         self.current_table = new_table
@@ -40,15 +48,13 @@ class semantic_analyzer(CompiscriptVisitor):
     def parse_type(self, type_ctx):
         if not type_ctx:
             return None, 0
-        text = type_ctx.getText()               # p.ej. integer[][], MyClass[]
+        text = type_ctx.getText()         
         dim = text.count('[]')
         base = text.replace('[]','')
         return base, dim
 
-
-    
     def infer_expression_type(self, ctx):
-        """Infiere el tipo de una expresión de forma lexemática y segura."""
+        """Infiere el tipo de una expresión"""
         if not ctx:
             return None
 
@@ -67,7 +73,6 @@ class semantic_analyzer(CompiscriptVisitor):
         if text.startswith("[") and text.endswith("]"):
             return "array", {}
 
-        # Identificador simple → consulta en la tabla de símbolos
         if re.fullmatch(r"[A-Za-z_]\w*", text):
             symbol = self.current_table.lookup_global(text)
             if symbol:
@@ -77,35 +82,135 @@ class semantic_analyzer(CompiscriptVisitor):
         return None
 
     def infer_type_and_dim(self, expr_ctx):
+   
+        b, d = self._get_inferred(expr_ctx)
+        if b is not None or d != 0:
+            return b, d
+
+        try:
+            self.visit(expr_ctx)
+            b, d = self._get_inferred(expr_ctx)
+            if b is not None or d != 0:
+                return b, d
+        except Exception:
+            pass
+
+
         text = expr_ctx.getText()
-    
-        if re.fullmatch(r"\d+", text):   return "integer", 0
-        if text in ("true","false"):     return "boolean", 0
-        if len(text)>=2 and text[0]=='"' and text[-1]=='"': return "string", 0
-        if text=="null":                 return "null", 0
+        if re.fullmatch(r"\d+", text):                 return "integer", 0
+        if text in ("true","false"):                   return "boolean", 0
+        if len(text)>=2 and text[0]=='"' and text[-1]=='"':  return "string", 0
+        if text == "null":                             return "null", 0
 
         if text.startswith('[') and text.endswith(']'):
-            return self._analyze_array_literal(expr_ctx)
+        
+            base, dim = self._infer_array_from_text(text)
+            return base, dim
+
 
         if re.fullmatch(r"[A-Za-z_]\w*", text):
             sym = self.current_table.lookup_global(text)
-            if sym: return getattr(sym,'type',None), getattr(sym,'dim',0)
+            if sym:
+                return getattr(sym,'type',None), getattr(sym,'dim',0)
+
+        if re.fullmatch(r"[A-Za-z0-9_\s+\-*/%()]+", text) and '"' not in text:
+            tokens = re.split(r"[+\-*/%()]", text)
+            tokens = [t.strip() for t in tokens if t.strip()]
+            all_int = True
+            for t in tokens:
+                if t.isdigit():
+                    continue
+                if re.fullmatch(r"[A-Za-z_]\w*", t):
+                    sym = self.current_table.lookup_global(t)
+                    if not sym or getattr(sym, 'type', None) != 'integer' or getattr(sym,'dim',0)!=0:
+                        all_int = False; break
+                else:
+                    all_int = False; break
+            if all_int:
+                return "integer", 0
 
         return None, 0
-    
-    def _analyze_array_literal(self, arr_ctx):
-        elems = list(getattr(arr_ctx, "expression", lambda: [])())
+
+    def _infer_array_from_text(self, text):
+        # parse top-level commas con balanceo de corchetes
+        assert text[0]=='[' and text[-1]==']'
+        inner = text[1:-1].strip()
+        if not inner:
+            return None, 1
+
+        parts = []
+        buf, depth = "", 0
+        for ch in inner:
+            if ch == '[': depth += 1
+            if ch == ']': depth -= 1
+            if ch == ',' and depth == 0:
+                parts.append(buf.strip()); buf = ""
+            else:
+                buf += ch
+        if buf.strip():
+            parts.append(buf.strip())
+
+        bases, dims = [], []
+        for p in parts:
+            if p.startswith('[') and p.endswith(']'):
+                b, d = self._infer_array_from_text(p)
+            elif p.isdigit():
+                b, d = "integer", 0
+            elif p in ("true","false"):
+                b, d = "boolean", 0
+            elif len(p)>=2 and p[0]=='"' and p[-1]=='"':
+                b, d = "string", 0
+            else:
+                # identificador: mira tabla
+                if re.fullmatch(r"[A-Za-z_]\w*", p):
+                    sym = self.current_table.lookup_global(p)
+                    b, d = (getattr(sym,'type',None), getattr(sym,'dim',0)) if sym else (None,0)
+                else:
+                    b, d = None, 0
+            bases.append(b); dims.append(d)
+
+        known = [b for b in bases if b is not None]
+        base = known[0] if known and all(k == known[0] for k in known) else None
+        dim = 1 + (dims[0] if dims else 0)
+        return base, dim
+
+
+    def _analyze_array_literal(self, ctx):
+        """
+        Analiza arrays
+        """
+        al = None
+        if hasattr(ctx, "arrayLiteral") and ctx.arrayLiteral():
+            al = ctx.arrayLiteral()
+        elif hasattr(ctx, "primaryExpr") and ctx.primaryExpr():
+            pe = ctx.primaryExpr()
+            if hasattr(pe, "literalExpr") and pe.literalExpr() and pe.literalExpr().arrayLiteral():
+                al = pe.literalExpr().arrayLiteral()
+        elif hasattr(ctx, "literalExpr") and ctx.literalExpr() and ctx.literalExpr().arrayLiteral():
+            al = ctx.literalExpr().arrayLiteral()
+
+        elems = list(al.expression()) if al else []
+
+ 
         if not elems:
-            return None, 1  
+            txt = ctx.getText()
+            if txt == "[]":
+                return None, 1 
+
+            return None, 1
+
         bases, dims = [], []
         for e in elems:
             b, d = self.infer_type_and_dim(e)
             bases.append(b); dims.append(d)
+
         known = [b for b in bases if b is not None]
-        if known and any(b!=known[0] for b in known):
-            self.add_error(arr_ctx, f"Literal de arreglo heterogéneo: {set(known)}")
-        if any(d!=dims[0] for d in dims):  
-            self.add_error(arr_ctx, "Arreglo no rectangular")
+        if known and any(b != known[0] for b in known):
+            self.add_error(ctx, f"Literal de arreglo heterogéneo: {set(known)}")
+
+        if any(d != dims[0] for d in dims):
+            self.add_error(ctx, "Arreglo no rectangular")
+
         return (known[0] if known else None), 1 + (dims[0] if dims else 0)
 
 
@@ -131,18 +236,18 @@ class semantic_analyzer(CompiscriptVisitor):
         line_num = self.get_line_number(ctx)
 
         if not ctx.typeAnnotation():
-            raise Exception(f"ERROR: la variable '{var_name}' debe tener tipo explícito")
+            self.add_error(ctx, f"La variable '{var_name}' debe tener tipo explícito")
 
         var_type, dimensions = self.parse_type(ctx.typeAnnotation().type_())
 
         if ctx.initializer():
             inferred_type, inferred_dim = self.infer_type_and_dim(ctx.initializer().expression())
 
-            if inf_base is None and inferred_dim > 0:
-                inf_base = var_type
+            if inferred_type is None and inferred_dim > 0:
+                inferred_type = var_type
 
-            if var_type and var_type != inf_base:
-                self.add_error(ctx, f"Tipo incompatible: {var_type} vs {inf_base}")
+            if var_type and var_type != inferred_type:
+                self.add_error(ctx, f"Tipo incompatible: {var_type} vs {inferred_type}")
             if dimensions and dimensions != inferred_dim:
                 self.add_error(ctx, f"Dimensión incompatible: {var_type} vs {inferred_dim}")
         if not self.current_table.insert_symbol(
@@ -157,46 +262,48 @@ class semantic_analyzer(CompiscriptVisitor):
             parent_class= None,
             dim=dimensions
         ):
-            raise Exception(f"ERROR:Variable '{var_name}' ya declarada en este ámbito")
+            self.add_error(ctx, f"Variable {var_name} ya declarada!")
 
 
     # Visit a parse tree produced by CompiscriptParser#constantDeclaration.
-    def visitConstantDeclaration(self, ctx:CompiscriptParser.ConstantDeclarationContext):
-        """Visita definiciones de constantes  """
-    
-        var_name = ctx.Identifier().getText()
-        line_num = self.get_line_number(ctx)
+    def visitConstantDeclaration(self, ctx):
+        """Define la declaracióon de una constante"""
+        name = ctx.Identifier().getText()
+        line = self.get_line_number(ctx)
 
-        if not ctx.typeAnnotation():
-            raise Exception(f"ERROR: la variable '{var_name}' debe tener tipo explícito")
+        decl_base, decl_dim = (None, 0)
+        if ctx.typeAnnotation():
+            decl_base, decl_dim = self.parse_type(ctx.typeAnnotation().type_())
 
-        var_type, dimensions = self.parse_type(ctx.typeAnnotation().type_())
+        if ctx.expression() is None:
 
-        if not ctx.expression():
-            raise Exception(f"ERROR: para declarar una constante debes siempre especificar un valor inicial")
+            self.add_error(ctx, f"Constante '{name}' requiere '= expresión'")
+            expr_base, expr_dim = (None, 0)
+        else:
+            expr_base, expr_dim = self.infer_type_and_dim(ctx.expression())
 
+            if expr_base is None and expr_dim > 0 and decl_base is not None:
+                expr_base = decl_base
 
-        inferred_type = self.infer_expression_type(ctx.expression())
-       
-
-        if inferred_type == "array" and dimensions != 0:
-            pass
-        if var_type != inferred_type:
-            raise Exception(f"ERROR: inicializador '{inferred_type}' incompatible con tipo '{var_type}'")
+        if decl_base is not None and expr_base is not None and decl_base != expr_base:
+            self.add_error(ctx, f"Tipo incompatible: {decl_base} vs {expr_base}")
+        if decl_dim and decl_dim != expr_dim:
+            self.add_error(ctx, f"Dimensión incompatible: {decl_dim} vs {expr_dim}")
 
         if not self.current_table.insert_symbol(
-            identifier=var_name,
-            type=var_type,
-            scope = self.current_table.scope,
-            line_pos=line_num,
+            identifier=name,
+            type=decl_base,
+            scope=self.current_table.scope,
+            line_pos=line,
             is_mutable=False,
             kind="variable",
-            params =[],
-            return_type = None,
-            parent_class= None,
-            dim=dimensions
+            params=[],
+            return_type=None,
+            parent_class=None,
+            dim=decl_dim
         ):
-            raise Exception(f"ERROR:Variable '{var_name}' ya declarada en este ámbito")
+            self.add_error(ctx, f"Constante {name} ya declarada!")
+
             
 
     def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
@@ -511,14 +618,14 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#breakStatement.
     def visitBreakStatement(self, ctx:CompiscriptParser.BreakStatementContext):
-        if self.in_loop != 0:
+        if self.in_loop == 0:
             self.add_error(ctx, "Solo puedes usar break si estas en un ciclo while o for")
         return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by CompiscriptParser#continueStatement.
     def visitContinueStatement(self, ctx:CompiscriptParser.ContinueStatementContext):
-        if self.in_loop != 0:
+        if self.in_loop == 0:
             self.add_error(ctx, "Solo puedes usar break si estas en un ciclo while o for")
         return self.visitChildren(ctx)
 
@@ -526,18 +633,21 @@ class semantic_analyzer(CompiscriptVisitor):
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
     def visitReturnStatement(self, ctx):
         if ctx.expression():
-            return_type, _ = self.infer_expression_type(ctx.expression())
+            return_type, return_dim = self.infer_type_and_dim(ctx.expression())
         else:
-            return_type = None
+            return_type, return_dim = None, 0
 
-        if return_type != self.expected_return_type:
+        if self.expected_return_type is None and ctx.expression():
+            self.add_error(ctx, "La función es void pero hay un valor en return")
 
-            self.add_error(ctx, f"En laa definición de la función {self.current_table.scope} el tipo de retorno esperado era {self.expected_return_type} y en realidad fue: {return_type}")
-
-        if self.expected_return_type == None:
-            self.add_error(ctx, f"La función es void pero hay un return")
+        if self.expected_return_type is not None:
+            if return_type != self.expected_return_type:
+                self.add_error(ctx, f"Tipo de retorno esperado {self.expected_return_type} y recibido {return_type}")
+            if return_dim != (self.expected_dim or 0):
+                self.add_error(ctx, f"Dimensión de retorno esperada {self.expected_dim} y recibida {return_dim}")
 
         self.found_return = True
+
 
 
     # Visit a parse tree produced by CompiscriptParser#switchCase.
@@ -557,6 +667,7 @@ class semantic_analyzer(CompiscriptVisitor):
         func_name = ctx.Identifier().getText()
         line_num = self.get_line_number(ctx)
         function_return_type = None
+        function_return_dim = None
         
         # Procesar parámetros
         params = []
@@ -564,14 +675,14 @@ class semantic_analyzer(CompiscriptVisitor):
             for param_ctx in ctx.parameters().parameter():
                 param_name = param_ctx.Identifier().getText()
                 param_type = None
-                if param_ctx.type():
-                    param_type, param_dimension = self.parse_type(param_ctx.type())
+                if param_ctx.type_():
+                    param_type, param_dimension = self.parse_type(param_ctx.type_())
                 params.append({"name": param_name, "type": param_type, "dimension": param_dimension})
 
         if ctx.type_(): #Verificar si el usuario definio un tipo (Nota: los voids deberán declararse sin un tipo)
-            function_return_type, _ = self.parse_type(ctx.type_())
+            function_return_type, function_return_dim = self.parse_type(ctx.type_())
 
-        if function_return_type not in ["integer", "string", "boolean"]: #Hay que chequear si es un primitivo, si no tal vez sea una clase
+        if function_return_type not in ["integer", "string", "boolean", None]: #Hay que chequear si es un primitivo, si no tal vez sea una clase
             if not self.current_table.lookup_global(function_return_type):
                 self.add_error(ctx, f"El tipo de la función {function_return_type} es inválido, no es un primitivo y tampoco pertence a una clase definida antes")
 
@@ -597,6 +708,7 @@ class semantic_analyzer(CompiscriptVisitor):
         self.current_function = func_name
         self.found_return = False
         self.expected_return_type = function_return_type
+        self.expected_dim = function_return_dim
         
         # Declarar parámetros como variables locales
         for param in params:
@@ -614,6 +726,10 @@ class semantic_analyzer(CompiscriptVisitor):
             dim=param["dimension"]
             ):
                 self.add_error(ctx, f"Parámetro '{param['name']}' duplicado")
+
+        if self.current_class != None and func_name == self.current_class: #Si se cumple esto, significa que la clase tiene contructor
+            self.has_constructor = True
+            self.constructor_params = params
         
         # Visitar el cuerpo de la función
         if ctx.block():
@@ -638,13 +754,47 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#classDeclaration.
     def visitClassDeclaration(self, ctx:CompiscriptParser.ClassDeclarationContext):
-        return self.visitChildren(ctx)
+        """Verifica delcaración de clases"""
+        ids = ctx.Identifier()               
+        class_name = ids[0].getText()
+        parent_class_name  = ids[1].getText() if len(ids) > 1 else None
+        line_num = self.get_line_number(ctx)
+
+        if not self.current_table.insert_symbol(
+            identifier=class_name,
+            type=None,
+            scope = self.current_table.scope,
+            line_pos=line_num,
+            is_mutable=False,
+            kind="function",
+            params =None,
+            return_type = None,
+            parent_class= parent_class_name,
+            dim=0
+
+        ):
+            self.add_error(ctx, f"Clase {class_name} redeclarada")
+
+        self.enter_scope(f"class_{class_name}")
+
+        old_class = self.current_class
+        self.current_class = class_name
+        self.constructor_params = []
+        self.has_constructor = False
+        for m in ctx.classMember():
+            self.visit(m) 
+
+        if self.has_constructor:
+            self.current_table[class_name].has_constructor = True
+            self.current_table[class_name].constructor_params = self.constructor_params
+        
+        self.current_class = old_class
+        self.exit_scope()
 
 
     # Visit a parse tree produced by CompiscriptParser#classMember.
     def visitClassMember(self, ctx:CompiscriptParser.ClassMemberContext):
         return self.visitChildren(ctx)
-
 
     # Visit a parse tree produced by CompiscriptParser#expression.
     def visitExpression(self, ctx:CompiscriptParser.ExpressionContext):
@@ -706,14 +856,36 @@ class semantic_analyzer(CompiscriptVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by CompiscriptParser#primaryExpr.
-    def visitPrimaryExpr(self, ctx:CompiscriptParser.PrimaryExprContext):
-        return self.visitChildren(ctx)
+    def visitPrimaryExpr(self, ctx):
+        if hasattr(ctx, "literalExpr") and ctx.literalExpr():
+            b, d = self.visit(ctx.literalExpr())
+            return self._set_inferred(ctx, b, d)
 
+        if hasattr(ctx, "Identifier") and ctx.Identifier():
+            name = ctx.Identifier().getText()
+            sym = self.current_table.lookup_global(name)
+            if sym:
+                return self._set_inferred(ctx, getattr(sym,'type',None), getattr(sym,'dim',0))
+            self.add_error(ctx, f"Identificador no declarado: {name}")
+            return self._set_inferred(ctx, None, 0)
+
+        self.visitChildren(ctx)
+        return self._get_inferred(ctx)
 
     # Visit a parse tree produced by CompiscriptParser#literalExpr.
-    def visitLiteralExpr(self, ctx:CompiscriptParser.LiteralExprContext):
-        return self.visitChildren(ctx)
+    def visitLiteralExpr(self, ctx):
+        # Si es array literal, delega
+        if hasattr(ctx, "arrayLiteral") and ctx.arrayLiteral():
+            b, d = self.visit(ctx.arrayLiteral())
+            return self._set_inferred(ctx, b, d)
+
+        txt = ctx.getText()
+        if re.fullmatch(r"\d+", txt):          return self._set_inferred(ctx, "integer", 0)
+        if txt in ("true","false"):            return self._set_inferred(ctx, "boolean", 0)
+        if len(txt) >= 2 and txt[0]=='"' and txt[-1]=='"':
+                                            return self._set_inferred(ctx, "string", 0)
+        if txt == "null":                      return self._set_inferred(ctx, "null", 0)
+        return self._set_inferred(ctx, None, 0)
 
 
     # Visit a parse tree produced by CompiscriptParser#leftHandSide.
@@ -757,9 +929,28 @@ class semantic_analyzer(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#arrayLiteral.
-    def visitArrayLiteral(self, ctx:CompiscriptParser.ArrayLiteralContext):
-        return self.visitChildren(ctx)
+    def visitArrayLiteral(self, ctx):
+        elems = list(ctx.expression()) if ctx.expression() else []
+        if not elems:
+            return self._set_inferred(ctx, None, 1)
 
+        bases, dims = [], []
+        for e in elems:
+            b, d = self.infer_type_and_dim(e)
+            bases.append(b); dims.append(d)
+
+        known = [b for b in bases if b is not None]
+        if known and any(b != known[0] for b in known):
+            self.add_error(ctx, f"Literal de arreglo heterogéneo: {set(known)}")
+            base = None
+        else:
+            base = known[0] if known else None
+
+        # Rectangularidad (si no permites jagged)
+        if any(d != dims[0] for d in dims):
+            self.add_error(ctx, "Arreglo no rectangular")
+
+        return self._set_inferred(ctx, base, 1 + (dims[0] if dims else 0))
 
     # Visit a parse tree produced by CompiscriptParser#type.
     def visitType(self, ctx:CompiscriptParser.TypeContext):
