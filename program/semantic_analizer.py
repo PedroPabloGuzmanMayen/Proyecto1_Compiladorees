@@ -466,6 +466,39 @@ class semantic_analyzer(CompiscriptVisitor):
         self.in_loop -= 1
         return None
 
+    def visitForStatement(self, ctx:CompiscriptParser.ForStatementContext):
+        """
+        Crea un scope para el for, verifica condición (si existe) y marca que estamos en bucle.
+        """
+        self.enter_scope(f"for_{self.get_line_number(ctx)}")
+
+        if ctx.variableDeclaration():
+            self.visit(ctx.variableDeclaration())
+        elif ctx.assignment():
+            self.visit(ctx.assignment())
+
+        exprs = list(ctx.expression()) if ctx.expression() else []
+        cond = exprs[0] if len(exprs) >= 1 else None
+        incr = exprs[1] if len(exprs) >= 2 else None
+
+        if cond is not None:
+            cond_type = self.infer_expression_type(cond)
+            if cond_type is None:
+                self.add_error(ctx, "No se pudo inferir tipo de la condición del for")
+            elif cond_type != "boolean":
+                self.add_error(ctx, f"Condición de for debe ser boolean (obtenido: {cond_type})")
+
+        if incr is not None:
+            self.visit(incr)
+
+        self.in_loop += 1
+        if ctx.block():
+            self.visit(ctx.block())
+        self.in_loop -= 1
+
+        self.exit_scope()
+        return None
+
 
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
     def visitTypeAnnotation(self, ctx:CompiscriptParser.TypeAnnotationContext):
