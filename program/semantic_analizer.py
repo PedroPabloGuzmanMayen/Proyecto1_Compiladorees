@@ -16,9 +16,6 @@ class semantic_analyzer(CompiscriptVisitor):
         self.current_function = None
         self.errors = []
         self.in_loop = 0  # Para verificar break/continue
-        self.while_scope_counter = 0
-        self.for_scope_counter = 0
-        self.if_statement_scope_counter = 0
 
     def add_error(self, ctx, message):
         """Registra un error con número de línea."""
@@ -52,7 +49,13 @@ class semantic_analyzer(CompiscriptVisitor):
         if type_ctx.baseType():
             base_type_text = type_ctx.baseType().getText()
             # Mapear tipos de la gramática
-            if base_type_text == "integer":
+            if re.match(r"(integer(\[\])*", base_type_text):
+                base_type = "int_array"
+            elif re.match(r"(string(\[\])*", base_type_text):
+                base_type = "string_array"
+            elif re.match(r"(boolean(\[\])*", base_type_text):
+                base_type = "boolean_array"
+            elif base_type_text == "integer":
                 base_type = "integer"
             elif base_type_text == "boolean":
                 base_type = "boolean"
@@ -534,11 +537,15 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#breakStatement.
     def visitBreakStatement(self, ctx:CompiscriptParser.BreakStatementContext):
+        if self.in_loop != 0:
+            self.add_error(ctx, "Solo puedes usar break si estas en un ciclo while o for")
         return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by CompiscriptParser#continueStatement.
     def visitContinueStatement(self, ctx:CompiscriptParser.ContinueStatementContext):
+        if self.in_loop != 0:
+            self.add_error(ctx, "Solo puedes usar break si estas en un ciclo while o for")
         return self.visitChildren(ctx)
 
 
