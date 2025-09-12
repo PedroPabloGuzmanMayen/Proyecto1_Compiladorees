@@ -17,6 +17,7 @@ class Register:
         self.parent_class = parent_class #Indica de quien se hereda
         self.has_constructor = has_constructor
         self.constructor_params = constructor_params
+        self.members = {} if kind == "class" else None
          
         # Solo para arrays
 
@@ -33,9 +34,12 @@ class Symbol_table():
         self.scope = "Global" if parent is None else scope
 
     def insert_symbol(self,identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim):
-        if identifier in self.elements.keys():
+        if identifier in self.elements:
             return False
-        self.elements[identifier] = Register(identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim)
+        reg = Register(identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim)
+        if kind == "class" and not hasattr(reg, "members"):
+            reg.members = {}
+        self.elements[identifier] = reg
         return True
 
     def lookup_local(self, identifier):
@@ -53,6 +57,27 @@ class Symbol_table():
         child = Symbol_table(parent=self, scope=scope_name)
         self.children.append(child)
         return child
+    
+    def add_class_member(self, class_name, member_reg: Register):
+        """
+        Adjunta un miembro (campo o método) al registro de la clase dada.
+        Devuelve True si se pudo, False en caso de error o duplicado.
+        """
+        cls = self.lookup_global(class_name)
+        if not cls or cls.kind != "class":
+            return False
+        if cls.members is None:
+            cls.members = {}
+        if member_reg.identifier in cls.members:
+            return False
+        cls.members[member_reg.identifier] = member_reg
+        return True
+
+    def get_class_member(self, class_name, member_name):
+        cls = self.lookup_global(class_name)
+        if not cls or cls.kind != "class" or not cls.members:
+            return None
+        return cls.members.get(member_name)
         
 
     def print_table(self, output=sys.stdout, indent=0):

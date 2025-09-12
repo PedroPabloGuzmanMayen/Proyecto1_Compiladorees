@@ -157,7 +157,6 @@ class semantic_analyzer(CompiscriptVisitor):
 
         elems = list(al.expression()) if al else []
 
- 
         if not elems:
             txt = ctx.getText()
             if txt == "[]":
@@ -178,14 +177,28 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, "Arreglo no rectangular")
 
         return (known[0] if known else None), 1 + (dims[0] if dims else 0)
+    
 
+    def _lookup_class(self, name):
+        sym = self.current_table.lookup_global(name)
+        return sym if sym and getattr(sym, "kind", None) == "class" else None
 
-    # Visit a parse tree produced by CompiscriptParser#program.
-    def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
-        """Visita el programa principal"""
-        for statement in ctx.statement():
-            self.visit(statement)
+    def _lookup_member(self, class_name, prop):
+        cls = self._lookup_class(class_name)
+        while cls:
+            if hasattr(cls, "members") and prop in cls.members:
+                return cls.members[prop]
+            parent = getattr(cls, "parent_class", None)
+            cls = self._lookup_class(parent) if parent else None
         return None
+
+
+        # Visit a parse tree produced by CompiscriptParser#program.
+        def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
+            """Visita el programa principal"""
+            for statement in ctx.statement():
+                self.visit(statement)
+            return None
     
     #Visit a parse tree produced by CompiscriptParser#block
     def visitBlock(self, ctx:CompiscriptParser.BlockContext):
@@ -197,7 +210,6 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx):
-        """Visita un nodo que declara una variable"""
         var_name = ctx.Identifier().getText()
         line_num = self.get_line_number(ctx)
 
@@ -209,30 +221,43 @@ class semantic_analyzer(CompiscriptVisitor):
 
         if ctx.initializer():
             inferred_type, inferred_dim = self.infer_type_and_dim(ctx.initializer().expression())
-
-            # Si es un array vacío, usamos el tipo declarado
             if inferred_type is None and inferred_dim > 0 and var_type:
                 inferred_type = var_type
-
             if var_type and inferred_type and var_type != inferred_type:
                 self.add_error(ctx, f"Tipo incompatible: {var_type} vs {inferred_type}")
             if dimensions and inferred_dim and dimensions != inferred_dim:
                 self.add_error(ctx, f"Dimensión incompatible: {dimensions} vs {inferred_dim}")
 
         if not self.current_table.insert_symbol(
-            identifier=var_name,
-            type=var_type,
-            scope=self.current_table.scope,
-            line_pos=line_num,
-            is_mutable=True,
-            kind="variable",
-            params=[],
-            return_type=None,
-            parent_class=None,
-            dim=dimensions
+            identifier=var_name, type=var_type, scope=self.current_table.scope, line_pos=line_num,
+            is_mutable=True, kind="variable", params=[], return_type=None, parent_class=None, dim=dimensions
         ):
             self.add_error(ctx, f"Variable {var_name} ya declarada!")
 
+
+
+        if self.current_class and self.current_function is None:
+            cls_sym = self.current_table.lookup_global(self.current_class)
+            if cls_sym and getattr(cls_sym, "kind", None) == "class":
+                if not hasattr(cls_sym, "members"):
+                    cls_sym.members = {}
+
+                if var_name in cls_sym.members:
+                    self.add_error(ctx, f"Miembro '{var_name}' ya existe en la clase {self.current_class}")
+                else:
+                    field_reg = Register(
+                        identifier=var_name,
+                        type=var_type,
+                        scope=self.current_table.scope,
+                        line_pos=line_num,
+                        is_mutable=True,
+                        kind="field",
+                        params=[],
+                        return_type=None,
+                        parent_class=self.current_class,
+                        dim=dimensions
+                    )
+                    cls_sym.members[var_name] = field_reg
 
 
     # Visit a parse tree produced by CompiscriptParser#constantDeclaration.
@@ -279,7 +304,7 @@ class semantic_analyzer(CompiscriptVisitor):
     def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
         """Verifica la condición del if y visita los bloques (if y optional else)."""
         cond_ctx = ctx.expression()
-        cond_type = self.infer_expression_type(cond_ctx)
+        cond_type, _ = self.infer_expression_type(cond_ctx)
         if cond_type is None:
             self.add_error(ctx, f"No se pudo inferir tipo de la condición del if")
         elif cond_type != "boolean":
@@ -299,16 +324,14 @@ class semantic_analyzer(CompiscriptVisitor):
         Estructura de la regla 'try' block 'catch' '(' Identifier ')' block
         """
         try:
-            # visitar try block en su propio scope opcional 
+
             if ctx.block(0):
                 self.enter_scope(f"try_{self.get_line_number(ctx)}")
                 self.visit(ctx.block(0))
                 self.exit_scope()
 
-            # catch: declarar identificador en un nuevo scope
-            # el identificador token está como ctx.Identifier()
             catch_id = None
-            # localizar el identificador: que está después de 'catch' '(' Identifier ')'
+
             if ctx.Identifier():
                 catch_id = ctx.Identifier().getText()
             else:
@@ -356,7 +379,7 @@ class semantic_analyzer(CompiscriptVisitor):
         """
         try:
             switch_expr = ctx.expression()
-            switch_type = self.infer_expression_type(switch_expr)
+            switch_type,_ = self.infer_expression_type(switch_expr)
             if switch_type is None:
                 self.add_error(ctx, "No se pudo inferir tipo de la expresión del switch")
 
@@ -364,7 +387,7 @@ class semantic_analyzer(CompiscriptVisitor):
             # ctx.switchCase() # devuelve lista de case contexts
             for case_ctx in list(ctx.switchCase()):
                 case_expr = case_ctx.expression()
-                case_type = self.infer_expression_type(case_expr)
+                case_type,_ = self.infer_expression_type(case_expr)
                 if switch_type and case_type and (case_type != switch_type):
                     self.add_error(case_ctx, f"Case de tipo {case_type} incompatible con switch de tipo {switch_type}")
                 case_text = case_expr.getText()
@@ -385,26 +408,53 @@ class semantic_analyzer(CompiscriptVisitor):
         return None
 
     def visitAssignment(self, ctx:CompiscriptParser.AssignmentContext):
-        """
-        Maneja asignaciones en sentencia
-        """
         try:
-    
             if ctx.getChildCount() >= 2 and ctx.getChild(1).getText() == '.':
-                left_expr = ctx.expression(0)
-                prop_name = ctx.Identifier().getText()
+                left_expr  = ctx.expression(0)
+                prop_name  = ctx.Identifier().getText()
                 right_expr = ctx.expression(1)
 
-                left_text = left_expr.getText()
-                symbol = self.current_table.lookup_global(left_text)
-                if not symbol:
-                    self.add_error(ctx, f"Asigna propiedad en objeto no declarado '{left_text}'")
+                owner_type, owner_dim = self.infer_type_and_dim(left_expr)
+                if owner_type is None:
+                    self.add_error(ctx, "No se pudo inferir el tipo del objeto al asignar propiedad")
+                    self.visit(right_expr)
+                    return None
+                if owner_dim != 0:
+                    self.add_error(ctx, f"No se pueden asignar propiedades en arrays (tipo {owner_type}[{owner_dim}])")
+                    self.visit(right_expr)
+                    return None
+
+                if not self._lookup_class(owner_type):
+                    self.add_error(ctx, f"Tipo '{owner_type}' no es una clase con propiedades")
+                    self.visit(right_expr)
+                    return None
+
+                mem = self._lookup_member(owner_type, prop_name)
+                if not mem:
+                    self.add_error(ctx, f"Clase '{owner_type}' no tiene propiedad '{prop_name}'")
+                    self.visit(right_expr)
+                    return None
+
+              
+                if getattr(mem, "kind", "") in ("method", "function", "constructor"):
+                    self.add_error(ctx, f"No se puede asignar al método '{owner_type}.{prop_name}'")
+                    self.visit(right_expr)
+                    return None
+
+         
+                rhs_t, rhs_d = self.infer_type_and_dim(right_expr)
+                if mem.type and rhs_t and mem.type != rhs_t:
+                    self.add_error(ctx, f"Tipo incompatible al asignar '{owner_type}.{prop_name}': "
+                                        f"esperado {mem.type}, recibido {rhs_t}")
+                if (mem.dim or 0) != (rhs_d or 0):
+                    self.add_error(ctx, f"Dimensión incompatible al asignar '{owner_type}.{prop_name}': "
+                                        f"esperada {mem.dim or 0}, recibida {rhs_d or 0}")
+
                 self.visit(left_expr)
                 self.visit(right_expr)
                 return None
 
             else:
-        
                 var_name = ctx.Identifier().getText()
                 rhs = ctx.expression(0)
                 symbol = self.current_table.lookup_global(var_name)
@@ -413,29 +463,21 @@ class semantic_analyzer(CompiscriptVisitor):
                     self.visit(rhs)
                     return None
 
-      
-                is_mutable = getattr(symbol, 'is_mutable', None)
-                if is_mutable is None:
-                    is_mutable = getattr(symbol, 'mutable', True)
-
+                is_mutable = getattr(symbol, 'is_mutable', getattr(symbol, 'mutable', True))
                 if not is_mutable:
                     self.add_error(ctx, f"Intento de asignar a constante/variable no mutable '{var_name}'")
 
-                inferred = self.infer_expression_type(rhs)
-                if inferred is None:
+                inferred_t, inferred_d = self.infer_expression_type(rhs)
+                if inferred_t is None and inferred_d == 0:
                     self.visit(rhs)
                     self.add_error(ctx, f"No se pudo inferir tipo del lado derecho en la asignación a '{var_name}'")
                     return None
 
                 var_type = getattr(symbol, 'type', None)
-                var_dim = getattr(symbol, 'dim', 0)
-
-                if inferred == "array":
-                    if not var_dim or var_dim == 0:
-                        self.add_error(ctx, f"Asigna un array a '{var_name}' no declarado como array")
-                else:
-                    if var_type and (inferred != var_type):
-                        self.add_error(ctx, f"Tipo incompatible en asignación a '{var_name}': {inferred} vs {var_type}")
+                var_dim  = getattr(symbol, 'dim', 0)
+                if var_type and (inferred_t != var_type or inferred_d != var_dim):
+                    self.add_error(ctx, f"Tipo incompatible en asignación a '{var_name}': "
+                                        f"{inferred_t}[{inferred_d}] vs {var_type}[{var_dim}]")
 
                 self.visit(rhs)
                 return None
@@ -444,11 +486,25 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, str(e))
             return None
 
-    def visitAssignExpr(self, ctx):
-        lhs_type, lhs_dim = self.infer_type_and_dim(ctx.lhs)
-        rhs_type, rhs_dim = self.infer_type_and_dim(ctx.assignmentExpr())
 
-        # lhs puede ser un identificador simple
+    def visitAssignExpr(self, ctx):
+     
+        lhs_type, lhs_dim = self.infer_type_and_dim(ctx.lhs)
+
+        rhs_node = None
+   
+        if hasattr(ctx, "assignmentExpr") and callable(ctx.assignmentExpr):
+            rhs_node = ctx.assignmentExpr()
+  
+        if rhs_node is None and hasattr(ctx, "expression") and callable(ctx.expression):
+            rhs_node = ctx.expression()
+
+        if rhs_node is None:
+            if ctx.getChildCount() >= 3 and ctx.getChild(1).getText() == '=':
+                rhs_node = ctx.getChild(2)
+
+        rhs_type, rhs_dim = self._visit_and_get(rhs_node) if rhs_node is not None else (None, 0)
+
         if ctx.lhs.primaryAtom() and ctx.lhs.primaryAtom().Identifier():
             name = ctx.lhs.primaryAtom().Identifier().getText()
             sym = self.current_table.lookup_global(name)
@@ -459,6 +515,7 @@ class semantic_analyzer(CompiscriptVisitor):
                                     f"{sym.type}[{sym.dim}] vs {rhs_type}[{rhs_dim}]")
 
         return self._set_inferred(ctx, rhs_type, rhs_dim)
+
 
     def visitPropertyAssignExpr(self, ctx):
         obj_type, obj_dim = self.infer_type_and_dim(ctx.lhs)
@@ -471,7 +528,7 @@ class semantic_analyzer(CompiscriptVisitor):
     def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
         """Verifica la condición del while y marca que estamos dentro de un bucle."""
         cond_ctx = ctx.expression()
-        cond_type = self.infer_expression_type(cond_ctx)
+        cond_type, _ = self.infer_expression_type(cond_ctx)
         if cond_type is None:
             self.add_error(ctx, f"No se pudo inferir tipo de la condición del while")
         elif cond_type != "boolean":
@@ -491,7 +548,7 @@ class semantic_analyzer(CompiscriptVisitor):
             self.visit(ctx.block())
 
         cond_ctx = ctx.expression()
-        cond_type = self.infer_expression_type(cond_ctx)
+        cond_type,_ = self.infer_expression_type(cond_ctx)
         if cond_type is None:
             self.add_error(ctx, f"No se pudo inferir tipo de la condición del do-while")
         elif cond_type != "boolean":
@@ -516,7 +573,7 @@ class semantic_analyzer(CompiscriptVisitor):
         incr = exprs[1] if len(exprs) >= 2 else None
 
         if cond is not None:
-            cond_type = self.infer_expression_type(cond)
+            cond_type,_ = self.infer_expression_type(cond)
             if cond_type is None:
                 self.add_error(ctx, "No se pudo inferir tipo de la condición del for")
             elif cond_type != "boolean":
@@ -627,7 +684,7 @@ class semantic_analyzer(CompiscriptVisitor):
         else:
             item_type, item_dim = base_type, base_dim - 1
 
-
+        self.in_loop +=1
         self.enter_scope(f"foreach_{self.get_line_number(ctx)}")
 
         inserted = self.current_table.insert_symbol(
@@ -651,6 +708,7 @@ class semantic_analyzer(CompiscriptVisitor):
 
         # Salir del scope
         self.exit_scope()
+        self.in_loop -=1
         return None
 
 
@@ -662,7 +720,7 @@ class semantic_analyzer(CompiscriptVisitor):
         func_name = ctx.Identifier().getText()
         line_num = self.get_line_number(ctx)
         function_return_type = None
-        function_return_dim = None
+        function_return_dim = 0
         
         # Procesar parámetros
         params = []
@@ -681,6 +739,20 @@ class semantic_analyzer(CompiscriptVisitor):
             if not self.current_table.lookup_global(function_return_type):
                 self.add_error(ctx, f"El tipo de la función {function_return_type} es inválido, no es un primitivo y tampoco pertence a una clase definida antes")
 
+        in_class = self.current_class is not None
+        is_ctor  = in_class and (func_name == "constructor")
+
+
+        if is_ctor:
+            if ctx.type_():
+                self.add_error(ctx, "El constructor no debe declarar tipo de retorno")
+            function_return_type, function_return_dim = None, 0
+            cls = self.current_table.lookup_global(self.current_class)
+            if cls:
+                cls.has_constructor = True
+                cls.constructor_params = params
+        kind = "constructor" if is_ctor else ("method" if in_class else "function")
+
 
         # Declarar la función en el ámbito actual
         if not self.current_table.insert_symbol(
@@ -696,6 +768,27 @@ class semantic_analyzer(CompiscriptVisitor):
             dim=0
         ):
             self.add_error(ctx, f"Redeclaración de la función {func_name}")
+
+        if in_class:
+            cls_sym = self.current_table.lookup_global(self.current_class)
+            if cls_sym and getattr(cls_sym, "kind", None) == "class":
+                if not hasattr(cls_sym, "members"):
+                    cls_sym.members = {}
+                if func_name in cls_sym.members:
+                    self.add_error(ctx, f"Miembro '{func_name}' ya existe en la clase {self.current_class}")
+                else:
+                    cls_sym.members[func_name] = Register(
+                        identifier=func_name,
+                        type=function_return_type,
+                        scope=self.current_table.scope,
+                        line_pos=line_num,
+                        is_mutable=False,
+                        kind=kind,
+                        params=params,
+                        return_type=function_return_type,
+                        parent_class=self.current_class,
+                        dim=function_return_dim
+                    )
         
         # Entrar al ámbito de la función
         self.enter_scope(f"function_{func_name}")
@@ -704,6 +797,20 @@ class semantic_analyzer(CompiscriptVisitor):
         self.found_return = False
         self.expected_return_type = function_return_type
         self.expected_dim = function_return_dim
+
+        if in_class:
+            self.current_table.insert_symbol(
+                identifier="this",
+                type=self.current_class,
+                scope=self.current_table.scope,
+                line_pos=line_num,
+                is_mutable=True,
+                kind="variable",
+                params=[],
+                return_type=None,
+                parent_class=self.current_class,
+                dim=0
+            )
         
         # Declarar parámetros como variables locales
         for param in params:
@@ -722,9 +829,6 @@ class semantic_analyzer(CompiscriptVisitor):
             ):
                 self.add_error(ctx, f"Parámetro '{param['name']}' duplicado")
 
-        if self.current_class != None and func_name == self.current_class: #Si se cumple esto, significa que la clase tiene contructor
-            self.has_constructor = True
-            self.constructor_params = params
         
         # Visitar el cuerpo de la función
         if ctx.block():
@@ -749,42 +853,45 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#classDeclaration.
     def visitClassDeclaration(self, ctx:CompiscriptParser.ClassDeclarationContext):
-        """Verifica delcaración de clases"""
-        ids = ctx.Identifier()               
+        ids = ctx.Identifier()
         class_name = ids[0].getText()
         parent_class_name  = ids[1].getText() if len(ids) > 1 else None
         line_num = self.get_line_number(ctx)
 
+       
         if not self.current_table.insert_symbol(
-            identifier=class_name,
-            type=None,
-            scope = self.current_table.scope,
-            line_pos=line_num,
-            is_mutable=False,
-            kind="function",
-            params =None,
-            return_type = None,
-            parent_class= parent_class_name,
-            dim=0
-
+            identifier=class_name, type=None, scope=self.current_table.scope, line_pos=line_num,
+            is_mutable=False, kind="class", params=None, return_type=None, parent_class=parent_class_name, dim=0
         ):
             self.add_error(ctx, f"Clase {class_name} redeclarada")
 
+     
+        cls_sym = self.current_table.lookup_global(class_name)
+        if not cls_sym:
+            self.add_error(ctx, f"No se pudo registrar la clase {class_name}")
+            return None
+
+        if not hasattr(cls_sym, "members"):
+            cls_sym.members = {}
+
+        # Entrar al scope de la clase
         self.enter_scope(f"class_{class_name}")
 
         old_class = self.current_class
         self.current_class = class_name
         self.constructor_params = []
         self.has_constructor = False
+
         for m in ctx.classMember():
-            self.visit(m) 
+            self.visit(m)
 
         if self.has_constructor:
-            self.current_table[class_name].has_constructor = True
-            self.current_table[class_name].constructor_params = self.constructor_params
-        
+            cls_sym.has_constructor = True
+            cls_sym.constructor_params = self.constructor_params
+
         self.current_class = old_class
         self.exit_scope()
+
 
 
     # Visit a parse tree produced by CompiscriptParser#classMember.
@@ -862,11 +969,27 @@ class semantic_analyzer(CompiscriptVisitor):
             rb, rd = self._visit_and_get(ctx.multiplicativeExpr(i))
             op = ctx.getChild(2*i-1).getText()
 
-            if (lb, ld) == ("integer", 0) and (rb, rd) == ("integer", 0):
-                lb, ld = "integer", 0
+            if op == '+':
+                if (lb, ld) == ("integer", 0) and (rb, rd) == ("integer", 0):
+                    lb, ld = "integer", 0
+                elif (lb == "string" and ld == 0) or (rb == "string" and rd == 0) \
+                    or (lb == "exception" and ld == 0 and rb == "string" and rd == 0) \
+                    or (rb == "exception" and rd == 0 and lb == "string" and ld == 0):
+                    lb, ld = "string", 0
+                else:
+                    self.add_error(ctx, f"Operación '+' inválida entre {lb}[{ld}] y {rb}[{rd}]")
+                    lb, ld = None, 0
+
+            elif op == '-':
+                if (lb, ld) == ("integer", 0) and (rb, rd) == ("integer", 0):
+                    lb, ld = "integer", 0
+                else:
+                    self.add_error(ctx, f"Operación '-' inválida entre {lb}[{ld}] y {rb}[{rd}]")
+                    lb, ld = None, 0
             else:
                 self.add_error(ctx, f"Operación '{op}' inválida entre {lb}[{ld}] y {rb}[{rd}]")
                 lb, ld = None, 0
+
         return self._set_inferred(ctx, lb, ld)
 
 
@@ -945,22 +1068,63 @@ class semantic_analyzer(CompiscriptVisitor):
     def visitLeftHandSide(self, ctx):
         base_type, base_dim = self.visit(ctx.primaryAtom())
 
+        last_member = None 
+
         for suf in ctx.suffixOp():
-            if suf.getChild(0).getText() == '(':
+            head = suf.getChild(0).getText()
 
-                base_type, base_dim = self._handle_call(base_type, suf)
-            elif suf.getChild(0).getText() == '[':
+            if head == '.':
+                prop = suf.Identifier().getText()
+                if base_dim != 0:
+                    self.add_error(ctx, f"No se pueden acceder propiedades en arrays (tipo {base_type}[{base_dim}])")
+                    base_type, base_dim, last_member = (None, 0), 0, None
+                    continue
 
+                cls = self._lookup_class(base_type)
+                if not cls:
+                    self.add_error(ctx, f"Tipo '{base_type}' no es una clase con propiedades")
+                    base_type, base_dim, last_member = (None, 0), 0, None
+                    continue
+
+                mem = self._lookup_member(base_type, prop)
+                if not mem:
+                    self.add_error(ctx, f"Clase '{base_type}' no tiene propiedad/método '{prop}'")
+                    base_type, base_dim, last_member = (None, 0), 0, None
+                    continue
+
+                base_type, base_dim = (mem.type or mem.return_type, mem.dim)
+                last_member = mem  
+
+            elif head == '(':
+                if last_member is not None:
+                    args = suf.arguments().expression() if suf.arguments() else []
+                    if len(args) != len(last_member.params):
+                        self.add_error(ctx, f"Método '{last_member.identifier}' esperaba {len(last_member.params)} parámetros, se dieron {len(args)}")
+                    else:
+                        for a, p in zip(args, last_member.params):
+                            t, d = self.infer_type_and_dim(a)
+                            if p["type"] and t != p["type"]:
+                                self.add_error(ctx, f"Parámetro '{p['name']}' esperaba {p['type']}, recibido {t}")
+                            if d != (p.get("dimension") or 0):
+                                self.add_error(ctx, f"Dimensión del parámetro '{p['name']}' esperaba {p.get('dimension') or 0}, recibió {d}")
+
+                    base_type, base_dim = (last_member.return_type or last_member.type, last_member.dim or 0)
+                    last_member = None
+                else:
+        
+                    rb, rd = self.visit(suf)  
+                    base_type, base_dim = rb, rd
+
+            elif head == '[':
                 idx_type, idx_dim = self.infer_type_and_dim(suf.expression())
                 if idx_type != "integer" or idx_dim != 0:
                     self.add_error(ctx, f"Índice debe ser integer, no {idx_type}[{idx_dim}]")
                 base_dim -= 1
                 if base_dim < 0:
                     self.add_error(ctx, "Acceso inválido a arreglo (dimensión negativa)")
-            elif suf.getChild(0).getText() == '.':
-                prop = suf.Identifier().getText()
 
-                base_type, base_dim = None, 0
+            else:
+                self.visit(suf)
 
         return self._set_inferred(ctx, base_type, base_dim)
 
@@ -1008,6 +1172,7 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, "'this' usado fuera de una clase")
             return self._set_inferred(ctx, None, 0)
         return self._set_inferred(ctx, self.current_class, 0)
+
 
     # Visit a parse tree produced by CompiscriptParser#CallExpr.
     def visitCallExpr(self, ctx):

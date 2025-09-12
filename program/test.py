@@ -208,7 +208,7 @@ def main():
         if passed == total:
             f.write("🎉 ¡Todas las pruebas pasaron conforme a lo esperado!\n")
         else:
-            f.write("⚠️  Algunas pruebas no se comportaron como se esperaba. Revisa los casos reportados arriba.\n")
+            f.write("⚠️  Algunas pruebas no se comportaron como se esperaba. \n")
 
 if __name__ == "__main__":
     main()
