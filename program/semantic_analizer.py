@@ -329,6 +329,111 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, str(e))
         return None
 
+    def visitAssignment(self, ctx:CompiscriptParser.AssignmentContext):
+        """
+        Maneja asignaciones en sentencia
+        """
+        try:
+            # Detectar si es property assignment
+            if ctx.getChildCount() >= 2 and ctx.getChild(1).getText() == '.':
+                # expression '.' Identifier '=' expression ';'
+                left_expr = ctx.expression(0)
+                prop_name = ctx.Identifier().getText()
+                right_expr = ctx.expression(1)
+
+                left_text = left_expr.getText()
+                symbol = self.current_table.lookup_global(left_text)
+                if not symbol:
+                    self.add_error(ctx, f"Asigna propiedad en objeto no declarado '{left_text}'")
+                self.visit(left_expr)
+                self.visit(right_expr)
+                return None
+
+            else:
+                # Identifier '=' expression ';'
+                var_name = ctx.Identifier().getText()
+                rhs = ctx.expression(0)
+                symbol = self.current_table.lookup_global(var_name)
+                if not symbol:
+                    self.add_error(ctx, f"Asignación a variable no declarada '{var_name}'")
+                    self.visit(rhs)
+                    return None
+
+                # verificar mutabilidad 
+                is_mutable = getattr(symbol, 'is_mutable', None)
+                if is_mutable is None:
+                    is_mutable = getattr(symbol, 'mutable', True)
+
+                if not is_mutable:
+                    self.add_error(ctx, f"Intento de asignar a constante/variable no mutable '{var_name}'")
+
+                inferred = self.infer_expression_type(rhs)
+                if inferred is None:
+                    self.visit(rhs)
+                    self.add_error(ctx, f"No se pudo inferir tipo del lado derecho en la asignación a '{var_name}'")
+                    return None
+
+                var_type = getattr(symbol, 'type', None)
+                var_dim = getattr(symbol, 'dim', 0)
+
+                if inferred == "array":
+                    if not var_dim or var_dim == 0:
+                        self.add_error(ctx, f"Asigna un array a '{var_name}' no declarado como array")
+                else:
+                    if var_type and (inferred != var_type):
+                        self.add_error(ctx, f"Tipo incompatible en asignación a '{var_name}': {inferred} vs {var_type}")
+
+                self.visit(rhs)
+                return None
+
+        except Exception as e:
+            self.add_error(ctx, str(e))
+            return None
+
+    def visitAssignExpr(self, ctx:CompiscriptParser.AssignExprContext):
+        """
+        assignmentExpr: lhs=leftHandSide '=' assignmentExpr
+        """
+        try:
+            lhs = ctx.lhs  
+            rhs = ctx.assignmentExpr()
+            lhs_text = lhs.getText()
+            if re.fullmatch(r"[A-Za-z_]\w*", lhs_text):
+                symbol = self.current_table.lookup_global(lhs_text)
+                if not symbol:
+                    self.add_error(ctx, f"Asignación en expresión a variable no declarada '{lhs_text}'")
+                else:
+                    if not getattr(symbol, 'is_mutable', True):
+                        self.add_error(ctx, f"Asignación a no mutable '{lhs_text}'")
+                    inferred = self.infer_expression_type(rhs)
+                    var_type = getattr(symbol, 'type', None)
+                    var_dim = getattr(symbol, 'dim', 0)
+                    if inferred == "array":
+                        if not var_dim:
+                            self.add_error(ctx, f"Asigna array a '{lhs_text}' no declarado como array")
+                    else:
+                        if var_type and inferred and (inferred != var_type):
+                            self.add_error(ctx, f"Tipo incompatible en asignación a '{lhs_text}': {inferred} vs {var_type}")
+            self.visitChildren(ctx)
+        except Exception as e:
+            self.add_error(ctx, str(e))
+        return None
+
+    def visitPropertyAssignExpr(self, ctx:CompiscriptParser.PropertyAssignExprContext):
+        # expression '.' Identifier '=' assignmentExpr
+        try:
+            left = ctx.lhs 
+            self.visitChildren(ctx)
+            # Si left es identificador, verificar que exista
+            left_text = left.getText() if left is not None else None
+            if left_text and re.fullmatch(r"[A-Za-z_]\w*", left_text):
+                sym = self.current_table.lookup_global(left_text)
+                if not sym:
+                    self.add_error(ctx, f"Asigna propiedad en objeto no declarado '{left_text}'")
+        except Exception as e:
+            self.add_error(ctx, str(e))
+        return None
+
     # Visit a parse tree produced by CompiscriptParser#typeAnnotation.
     def visitTypeAnnotation(self, ctx:CompiscriptParser.TypeAnnotationContext):
         return self.visitChildren(ctx)
