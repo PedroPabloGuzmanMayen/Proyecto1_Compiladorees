@@ -553,12 +553,6 @@ class semantic_analyzer(CompiscriptVisitor):
     def visitPrintStatement(self, ctx:CompiscriptParser.PrintStatementContext):
         return self.visitChildren(ctx)
 
-
-    # Visit a parse tree produced by CompiscriptParser#foreachStatement.
-    def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by CompiscriptParser#breakStatement.
     def visitBreakStatement(self, ctx:CompiscriptParser.BreakStatementContext):
         if self.in_loop == 0:
@@ -576,20 +570,30 @@ class semantic_analyzer(CompiscriptVisitor):
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
     def visitReturnStatement(self, ctx):
         if ctx.expression():
-            return_type, return_dim = self.infer_type_and_dim(ctx.expression())
+            return_type, return_dim = self._visit_and_get(ctx.expression())
         else:
             return_type, return_dim = None, 0
 
+        # Caso función void
         if self.expected_return_type is None and ctx.expression():
             self.add_error(ctx, "La función es void pero hay un valor en return")
 
+        # Caso función con tipo esperado
         if self.expected_return_type is not None:
             if return_type != self.expected_return_type:
-                self.add_error(ctx, f"Tipo de retorno esperado {self.expected_return_type} y recibido {return_type}")
+                self.add_error(
+                    ctx,
+                    f"Tipo de retorno esperado {self.expected_return_type} y recibido {return_type}"
+                )
             if return_dim != (self.expected_dim or 0):
-                self.add_error(ctx, f"Dimensión de retorno esperada {self.expected_dim} y recibida {return_dim}")
+                self.add_error(
+                    ctx,
+                    f"Dimensión de retorno esperada {self.expected_dim} y recibida {return_dim}"
+                )
 
         self.found_return = True
+        return self._set_inferred(ctx, return_type, return_dim)
+
 
 
 
@@ -601,6 +605,54 @@ class semantic_analyzer(CompiscriptVisitor):
     # Visit a parse tree produced by CompiscriptParser#defaultCase.
     def visitDefaultCase(self, ctx:CompiscriptParser.DefaultCaseContext):
         return self.visitChildren(ctx)
+    
+    def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
+        """
+        Maneja foreach (let item in arr) { ... }
+        """
+        iter_var = ctx.Identifier().getText()
+        expr_ctx = ctx.expression()
+
+  
+        base_type, base_dim = self.infer_type_and_dim(expr_ctx)
+        if base_type is None and expr_ctx.getText().isidentifier():
+            sym = self.current_table.lookup_global(expr_ctx.getText())
+            if sym:
+                base_type, base_dim = sym.type, sym.dim
+
+
+        if base_dim <= 0:
+            self.add_error(ctx, f"La expresión en foreach debe ser un arreglo (obtenido: {base_type}[{base_dim}])")
+            item_type, item_dim = None, 0
+        else:
+            item_type, item_dim = base_type, base_dim - 1
+
+
+        self.enter_scope(f"foreach_{self.get_line_number(ctx)}")
+
+        inserted = self.current_table.insert_symbol(
+            identifier=iter_var,
+            type=base_type,
+            scope=self.current_table.scope,
+            line_pos=self.get_line_number(ctx),
+            is_mutable=True,
+            kind="variable",
+            params=[],
+            return_type=None,
+            parent_class=None,
+            dim=base_dim - 1 if base_dim > 0 else 0
+        )
+        if not inserted:
+            self.add_error(ctx, f"Variable '{iter_var}' ya declarada en este ámbito")
+
+
+        if ctx.block():
+            self.visit(ctx.block())
+
+        # Salir del scope
+        self.exit_scope()
+        return None
+
 
 
     # Visit a parse tree produced by CompiscriptParser#functionDeclaration.
@@ -639,7 +691,7 @@ class semantic_analyzer(CompiscriptVisitor):
             is_mutable=False,
             kind="function",
             params =params,
-            return_type = True,
+            return_type=function_return_type,
             parent_class= None,
             dim=0
         ):
@@ -959,30 +1011,34 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#CallExpr.
     def visitCallExpr(self, ctx):
-        """
-        Maneja llamadas a funciones o métodos: f(x,y), obj.m(a)
-        """
-        base_type, base_dim = self.infer_type_and_dim(ctx.parentCtx.parentCtx.primaryAtom())
+
+        parent = ctx.parentCtx
         func_name = None
 
-        if ctx.parentCtx.primaryAtom() and ctx.parentCtx.primaryAtom().Identifier():
-            func_name = ctx.parentCtx.primaryAtom().Identifier().getText()
+        if hasattr(parent, "Identifier") and parent.Identifier():
+            # caso f(x,y)
+            func_name = parent.Identifier().getText()
+
+        if func_name:
             sym = self.current_table.lookup_global(func_name)
-            if not sym or sym.kind not in ("function", "method"):
-                self.add_error(ctx, f"Llamada a '{func_name}' que no es función/método")
+            if not sym or sym.kind != "function":
+                self.add_error(ctx, f"Llamada a '{func_name}' que no es función")
                 return self._set_inferred(ctx, None, 0)
+
             args = ctx.arguments().expression() if ctx.arguments() else []
             if len(args) != len(sym.params):
                 self.add_error(ctx, f"Función '{func_name}' esperaba {len(sym.params)} parámetros, se dieron {len(args)}")
 
-            for a, (param_name, param_type) in zip(args, [(p["name"], p["type"]) for p in sym.params]):
+            for a, param in zip(args, sym.params):
                 t, d = self.infer_type_and_dim(a)
-                if param_type and t != param_type:
-                    self.add_error(ctx, f"Parámetro '{param_name}' esperaba {param_type}, recibido {t}")
+                if param["type"] and t != param["type"]:
+                    self.add_error(ctx, f"Parámetro '{param['name']}' esperaba {param['type']}, recibido {t}")
 
-            return self._set_inferred(ctx, sym.return_type, 0)
+
+            return self._set_inferred(ctx, sym.type, sym.dim or 0)
 
         return self._set_inferred(ctx, None, 0)
+
 
     # Visit a parse tree produced by CompiscriptParser#IndexExpr.
     def visitIndexExpr(self, ctx):

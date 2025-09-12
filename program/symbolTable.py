@@ -55,12 +55,23 @@ class Symbol_table():
         return child
         
 
-    def print_table(self, output=sys.stdout):
+    def print_table(self, output=sys.stdout, indent=0):
+        """Imprime la tabla de símbolos y sus subtablas en formato jerárquico"""
+        indent_str = "  " * indent
+        print(f"{indent_str}Scope: {self.scope}", file=output)
+
+        if not self.elements:
+            print(f"{indent_str}  (sin símbolos)", file=output)
+
         for sym in self.elements.values():
-            print(f"  - {sym.identifier}:")
-            print(f"      Tipo: {sym.type}")
-            print(f"      Dimensión: {sym.dim}")
-            print(f"      Mutable: {sym.is_mutable}")
-            print(f"      Clase Padre: {sym.parent_class}")
-            print(f"      Kind: {sym.kind}")
-            print(f"      Línea: {sym.line_pos}")
+            print(f"{indent_str}  - {sym.identifier}:", file=output)
+            print(f"{indent_str}      Tipo: {sym.type}", file=output)
+            print(f"{indent_str}      Dimensión: {sym.dim}", file=output)
+            print(f"{indent_str}      Mutable: {sym.is_mutable}", file=output)
+            print(f"{indent_str}      Clase Padre: {sym.parent_class}", file=output)
+            print(f"{indent_str}      Kind: {sym.kind}", file=output)
+            print(f"{indent_str}      Línea: {sym.line_pos}", file=output)
+
+        # Recorrer scopes hijos
+        for child in getattr(self, "children", []):
+            child.print_table(output=output, indent=indent + 1)

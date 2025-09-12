@@ -157,7 +157,41 @@ def main():
         ("Continue inválido",
          """let x: integer = 2;
             continue;
-            break;""", True)
+            break;""", False),
+
+        # === LLAMADA A FUNCION ====
+
+        ("LLamada a función",
+         """function add(a: integer, b: integer): integer {
+                let r: integer = a + b;
+                return r;
+            }
+
+            let c: integer = add(1,2);
+            """, True),
+
+        ("Foreach válido en array 1D",
+         """let arr: integer[] = [1,2,3];
+        foreach (x in arr) {
+        let y: integer = x + 1;
+        }""", True),
+
+        ("Foreach válido en array 2D",
+         """let mat: integer[][] = [[1,2],[3,4]];
+        foreach (row in mat) {
+            foreach (val in row) {
+                let z: integer = val;
+            }
+        }""", True),
+
+        ("Foreach sobre no-array (debe fallar)",
+        """let a: integer = 5;
+            foreach (x in a) {
+                let y: integer = x;
+            }""", False)
+
+        
+
     ]
 
     passed = 0
