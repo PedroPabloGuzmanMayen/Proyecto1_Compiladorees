@@ -551,7 +551,10 @@ class semantic_analyzer(CompiscriptVisitor):
 
         if return_type != self.expected_return_type:
 
-            self.add_error(ctx, f"La definición de la función {self.current_table.scope}: el tipo de retorno esperado era {self.expected_return_type} y en realidad fue: {return_type}")
+            self.add_error(ctx, f"En laa definición de la función {self.current_table.scope} el tipo de retorno esperado era {self.expected_return_type} y en realidad fue: {return_type}")
+
+        if self.expected_return_type == None:
+            self.add_error(ctx, f"La función es void pero hay un return")
 
         self.found_return = True
 
@@ -585,7 +588,7 @@ class semantic_analyzer(CompiscriptVisitor):
                 params.append({"name": param_name, "type": param_type, "dimension": param_dimension})
 
         if ctx.type_(): #Verificar si el usuario definio un tipo (Nota: los voids deberán declararse sin un tipo)
-            function_return_type = self.parse_type(ctx.type_())
+            function_return_type, _ = self.parse_type(ctx.type_())
 
         if function_return_type not in ["integer", "string", "boolean"]: #Hay que chequear si es un primitivo, si no tal vez sea una clase
             if not self.current_table.lookup_global(function_return_type):
@@ -640,7 +643,7 @@ class semantic_analyzer(CompiscriptVisitor):
         self.exit_scope()
 
         if self.expected_return_type != None and not self.found_return:
-            self.add_error(ctx, f"La función es void y se esperaba un retorno ")
+            self.add_error(ctx, f"La función no es void y se esperaba un retorno ")
 
     # Visit a parse tree produced by CompiscriptParser#parameters.
     def visitParameters(self, ctx:CompiscriptParser.ParametersContext):
