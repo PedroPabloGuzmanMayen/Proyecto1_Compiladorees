@@ -529,16 +529,6 @@ class semantic_analyzer(CompiscriptVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by CompiscriptParser#doWhileStatement.
-    def visitDoWhileStatement(self, ctx:CompiscriptParser.DoWhileStatementContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by CompiscriptParser#forStatement.
-    def visitForStatement(self, ctx:CompiscriptParser.ForStatementContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by CompiscriptParser#foreachStatement.
     def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
         return self.visitChildren(ctx)
