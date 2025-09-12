@@ -87,8 +87,6 @@ class semantic_analyzer(CompiscriptVisitor):
         if text == "null":
             return "null"
 
-        # Arreglo literal (detección superficial).
-        # Nota: puedes mejorar esto luego para inferir tipo de elementos.
         if text.startswith("[") and text.endswith("]"):
             return "array", {}
 
@@ -96,9 +94,9 @@ class semantic_analyzer(CompiscriptVisitor):
         if re.fullmatch(r"[A-Za-z_]\w*", text):
             symbol = self.current_table.lookup_global(text)
             if symbol:
-                return symbol.type  # p.ej., "integer" o "string"
+                return symbol.type 
 
-        # Expresiones compuestas (e.g., a+b) o casos no contemplados
+
         return None
 
     def handle_array_elements_type(self):
@@ -545,8 +543,17 @@ class semantic_analyzer(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
-    def visitReturnStatement(self, ctx:CompiscriptParser.ReturnStatementContext):
-        return self.visitChildren(ctx)
+    def visitReturnStatement(self, ctx):
+        if ctx.expression():
+            return_type, _ = self.infer_expression_type(ctx.expression())
+        else:
+            return_type = None
+
+        if return_type != self.expected_return_type:
+
+            self.add_error(ctx, f"La definición de la función {self.current_table.scope}: el tipo de retorno esperado era {self.expected_return_type} y en realidad fue: {return_type}")
+
+        self.found_return = True
 
 
     # Visit a parse tree produced by CompiscriptParser#switchCase.
@@ -565,6 +572,7 @@ class semantic_analyzer(CompiscriptVisitor):
 
         func_name = ctx.Identifier().getText()
         line_num = self.get_line_number(ctx)
+        function_return_type = None
         
         # Procesar parámetros
         params = []
@@ -573,43 +581,54 @@ class semantic_analyzer(CompiscriptVisitor):
                 param_name = param_ctx.Identifier().getText()
                 param_type = None
                 if param_ctx.type():
-                    param_type, _ = self.parse_type(param_ctx.type())
-                params.append({"name": param_name, "type": param_type})
+                    param_type, param_dimension = self.parse_type(param_ctx.type())
+                params.append({"name": param_name, "type": param_type, "dimension": param_dimension})
 
-        if ctx.type_(): #Verificar si el usuario definio un tipo 
-            function_return_type = self.parse_type(ctx.type_)
-        
+        if ctx.type_(): #Verificar si el usuario definio un tipo (Nota: los voids deberán declararse sin un tipo)
+            function_return_type = self.parse_type(ctx.type_())
+
+        if function_return_type not in ["integer", "string", "boolean"]: #Hay que chequear si es un primitivo, si no tal vez sea una clase
+            if not self.current_table.lookup_global(function_return_type):
+                self.add_error(ctx, f"El tipo de la función {function_return_type} es inválido, no es un primitivo y tampoco pertence a una clase definida antes")
+
+
         # Declarar la función en el ámbito actual
         if not self.current_table.insert_symbol(
-            lidentifier=func_name,
-            type=var_type,
+            identifier=func_name,
+            type=function_return_type,
             scope = self.current_table.scope,
             line_pos=line_num,
             is_mutable=False,
             kind="function",
-            params =[],
-            return_type = None,
+            params =params,
+            return_type = True,
             parent_class= None,
-            dim=dimensions
+            dim=0
         ):
-            raise Exception("ERROR: redeclaración de función")
+            self.add_error(ctx, f"Redeclaración de la función {func_name}")
         
-        # Entrar al ámbito de la función  b
+        # Entrar al ámbito de la función
         self.enter_scope(f"function_{func_name}")
         old_function = self.current_function
         self.current_function = func_name
+        self.found_return = False
+        self.expected_return_type = function_return_type
         
         # Declarar parámetros como variables locales
         for param in params:
-            try:
-                self.current_table.insert_symbol(
-                    lexeme=param["name"],
-                    identifier=param["name"],
-                    type=param["type"],
-                    line_pos=line_num,
-                    kind="parameter"
-                )
-            except:
+            
+            if not self.current_table.insert_symbol(
+            identifier=param["name"],
+            type=param["type"],
+            scope = self.current_table.scope,
+            line_pos=line_num,
+            is_mutable=False,
+            kind="variable",
+            params =None,
+            return_type = None,
+            parent_class= None,
+            dim=param["dimension"]
+            ):
                 self.add_error(ctx, f"Parámetro '{param['name']}' duplicado")
         
         # Visitar el cuerpo de la función
@@ -619,6 +638,9 @@ class semantic_analyzer(CompiscriptVisitor):
         # Salir del ámbito
         self.current_function = old_function
         self.exit_scope()
+
+        if self.expected_return_type != None and not self.found_return:
+            self.add_error(ctx, f"La función es void y se esperaba un retorno ")
 
     # Visit a parse tree produced by CompiscriptParser#parameters.
     def visitParameters(self, ctx:CompiscriptParser.ParametersContext):
