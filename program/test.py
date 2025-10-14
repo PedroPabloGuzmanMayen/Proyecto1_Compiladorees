@@ -170,6 +170,31 @@ def main():
             let c: integer = add(1,2);
             """, True),
 
+        ("Return con llamada a función (válido)",
+         """function hola(arg: integer): integer {
+                return arg + 1;
+            }
+
+            function adios(arg: integer): integer {
+                return hola(arg);
+            }
+
+            let t: integer = adios(5);
+         """,
+         True),
+
+        ("Return con llamada a función (tipo de retorno incorrecto, inválido)",
+         """function hola(arg: integer): integer {
+                return arg + 1;
+            }
+
+            function adios(arg: integer): boolean {
+                // aquí se retorna un integer donde se esperaba boolean -> debe fallar
+                return hola(arg);
+            }
+         """,
+         False),
+
         ("Foreach válido en array 1D",
          """let arr: integer[] = [1,2,3];
         foreach (x in arr) {

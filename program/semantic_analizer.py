@@ -599,29 +599,15 @@ class semantic_analyzer(CompiscriptVisitor):
             return_type, return_dim = self._visit_and_get(ctx.expression())
         else:
             return_type, return_dim = None, 0
-
-        # Caso función void
         if self.expected_return_type is None and ctx.expression():
             self.add_error(ctx, "La función es void pero hay un valor en return")
-
-        # Caso función con tipo esperado
         if self.expected_return_type is not None:
             if return_type != self.expected_return_type:
-                self.add_error(
-                    ctx,
-                    f"Tipo de retorno esperado {self.expected_return_type} y recibido {return_type}"
-                )
+                self.add_error(ctx, f"Tipo de retorno esperado {self.expected_return_type} y recibido {return_type}")
             if return_dim != (self.expected_dim or 0):
-                self.add_error(
-                    ctx,
-                    f"Dimensión de retorno esperada {self.expected_dim} y recibida {return_dim}"
-                )
-
+                self.add_error(ctx, f"Dimensión de retorno esperada {self.expected_dim} y recibida {return_dim}")
         self.found_return = True
         return self._set_inferred(ctx, return_type, return_dim)
-
-
-
 
     # Visit a parse tree produced by CompiscriptParser#switchCase.
     def visitSwitchCase(self, ctx:CompiscriptParser.SwitchCaseContext):
@@ -1035,6 +1021,7 @@ class semantic_analyzer(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#leftHandSide.
     def visitLeftHandSide(self, ctx):
+        primary_text = ctx.primaryAtom().getText() if ctx.primaryAtom() else None
         base_type, base_dim = self.visit(ctx.primaryAtom())
 
         last_member = None 
@@ -1046,51 +1033,70 @@ class semantic_analyzer(CompiscriptVisitor):
                 prop = suf.Identifier().getText()
                 if base_dim != 0:
                     self.add_error(ctx, f"No se pueden acceder propiedades en arrays (tipo {base_type}[{base_dim}])")
-                    base_type, base_dim, last_member = (None, 0), 0, None
+                    base_type, base_dim, last_member = None, 0, None
                     continue
 
                 cls = self._lookup_class(base_type)
                 if not cls:
                     self.add_error(ctx, f"Tipo '{base_type}' no es una clase con propiedades")
-                    base_type, base_dim, last_member = (None, 0), 0, None
+                    base_type, base_dim, last_member = None, 0, None
                     continue
 
                 mem = self._lookup_member(base_type, prop)
                 if not mem:
                     self.add_error(ctx, f"Clase '{base_type}' no tiene propiedad/método '{prop}'")
-                    base_type, base_dim, last_member = (None, 0), 0, None
+                    base_type, base_dim, last_member = None, 0, None
                     continue
 
                 base_type, base_dim = (mem.type or mem.return_type, mem.dim)
                 last_member = mem  
 
             elif head == '(':
+                args = suf.arguments().expression() if suf.arguments() else []
+            
                 if last_member is not None:
-                    args = suf.arguments().expression() if suf.arguments() else []
+                    # ===== Llamada a MÉTODO: obj.metodo(...) =====
                     if len(args) != len(last_member.params):
                         self.add_error(ctx, f"Método '{last_member.identifier}' esperaba {len(last_member.params)} parámetros, se dieron {len(args)}")
                     else:
                         for a, p in zip(args, last_member.params):
-                            t, d = self.infer_type_and_dim(a)
-                            if p["type"] and t != p["type"]:
+                            t, d = self._visit_and_get(a)
+                            if p.get("type") and t != p["type"]:
                                 self.add_error(ctx, f"Parámetro '{p['name']}' esperaba {p['type']}, recibido {t}")
                             if d != (p.get("dimension") or 0):
                                 self.add_error(ctx, f"Dimensión del parámetro '{p['name']}' esperaba {p.get('dimension') or 0}, recibió {d}")
-
-                    base_type, base_dim = (last_member.return_type or last_member.type, last_member.dim or 0)
+            
+                    base_type = (last_member.return_type or last_member.type)
+                    base_dim  = (last_member.dim or 0)
                     last_member = None
+            
                 else:
-        
-                    rb, rd = self.visit(suf)  
-                    base_type, base_dim = rb, rd
-
-            elif head == '[':
-                idx_type, idx_dim = self.infer_type_and_dim(suf.expression())
-                if idx_type != "integer" or idx_dim != 0:
-                    self.add_error(ctx, f"Índice debe ser integer, no {idx_type}[{idx_dim}]")
-                base_dim -= 1
-                if base_dim < 0:
-                    self.add_error(ctx, "Acceso inválido a arreglo (dimensión negativa)")
+                    # ===== Llamada a FUNCIÓN LIBRE: hola(...) =====
+                    callee = primary_text
+            
+                    func_sym = (self.current_table.lookup(callee)
+                                if hasattr(self.current_table, "lookup") else None)
+                    if not func_sym and hasattr(self.global_table, "lookup_global"):
+                        func_sym = self.global_table.lookup_global(callee)
+            
+                    if not func_sym or getattr(func_sym, "kind", "") != "function":
+                        self.add_error(ctx, f"'{callee}' no es una función")
+                        base_type, base_dim = None, 0
+                    else:
+                        expected_params = getattr(func_sym, "params", []) or []
+                        if len(args) != len(expected_params):
+                            self.add_error(ctx, f"Función '{callee}' esperaba {len(expected_params)} parámetros, se dieron {len(args)}")
+                        else:
+                            for a, p in zip(args, expected_params):
+                                t, d = self._visit_and_get(a)
+                                if p.get("type") and t != p["type"]:
+                                    self.add_error(ctx, f"Parámetro '{p['name']}' esperaba {p['type']}, recibido {t}")
+                                if d != (p.get("dimension") or 0):
+                                    self.add_error(ctx, f"Dimensión del parámetro '{p['name']}' esperaba {p.get('dimension') or 0}, recibió {d}")
+            
+                        base_type = (getattr(func_sym, "return_type", None) or getattr(func_sym, "type", None))
+                        base_dim  = (getattr(func_sym, "dim", 0) or 0)
+            
 
             else:
                 self.visit(suf)

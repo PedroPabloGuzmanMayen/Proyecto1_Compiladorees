@@ -1,0 +1,1421 @@
+
+======================================================================
+PRUEBA: Variable simple
+======================================================================
+Código:
+let x: integer = 5;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Variable sin tipo explícito (debe fallar)
+======================================================================
+Código:
+var y = 3;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: La variable 'y' debe tener tipo explícito
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - y:
+      Tipo: None
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Constante con tipo e init
+======================================================================
+Código:
+const PI: integer = 314;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - PI:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Constante sin inicializador (debe fallar)
+======================================================================
+Código:
+const C: integer;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Constante 'C' requiere '= expresión'
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - C:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Array 1D correcto
+======================================================================
+Código:
+let a: integer[] = [1,2,3];
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 1
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Array 2D rectangular
+======================================================================
+Código:
+let m: integer[][] = [[1,2],[3,4]];
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - m:
+      Tipo: integer
+      Dimensión: 2
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Array no rectangular (debe fallar)
+======================================================================
+Código:
+let j: integer[][] = [[1,2],[3]];
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - j:
+      Tipo: integer
+      Dimensión: 2
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: FALLÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Array heterogéneo (debe fallar)
+======================================================================
+Código:
+let h: integer[] = [1, "x"];
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Arreglo heterogéneo: {'integer', 'string'}
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - h:
+      Tipo: integer
+      Dimensión: 1
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Array vacío con tipo anotado
+======================================================================
+Código:
+let s: string[] = [];
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - s:
+      Tipo: string
+      Dimensión: 1
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Función con retorno int correcto
+======================================================================
+Código:
+function add(a: integer, b: integer): integer {
+                let r: integer = a + b;
+                return r;
+            }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - add:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  Scope: function_add
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - b:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - r:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 2
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Función retorno tipo incorrecto (debe fallar)
+======================================================================
+Código:
+function bad(a: integer): integer {
+                return "x";
+            }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L2: Tipo de retorno esperado integer y recibido string
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - bad:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  Scope: function_bad
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Función retorna array 1D correcto
+======================================================================
+Código:
+function f(): integer[] {
+                return [1,2,3];
+            }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - f:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  Scope: function_f
+    (sin símbolos)
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Función retorna array con dimensión incorrecta (debe fallar)
+======================================================================
+Código:
+function g(): integer[] {
+                return [[1]];
+            }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L2: Tipo de retorno esperado integer y recibido None
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - g:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  Scope: function_g
+    (sin símbolos)
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Función void con return (debe fallar)
+======================================================================
+Código:
+function h() {
+                return 5;
+            }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L2: La función es void pero hay un valor en return
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - h:
+      Tipo: None
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  Scope: function_h
+    (sin símbolos)
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: If con condición booleana
+======================================================================
+Código:
+let p: integer = 1; if (true) { let x: integer = 1; }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - p:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: If con condición no booleana (debe fallar)
+======================================================================
+Código:
+if (1) { let x: integer = 1; }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Condición de if debe ser boolean (obtenido: integer)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: While con condición booleana
+======================================================================
+Código:
+while (true) { let a: integer = 1; }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: While con condición no booleana (debe fallar)
+======================================================================
+Código:
+while (1) { let a: integer = 1; }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Condición de while debe ser boolean (obtenido: integer)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: For con condición booleana
+======================================================================
+Código:
+for (let i: integer = 0; true; i = i + 1) { let k: integer = 1; }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  (sin símbolos)
+  Scope: for_1
+    - i:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - k:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: For con condición no booleana (debe fallar)
+======================================================================
+Código:
+for (let i: integer = 0; 1; i = i + 1) { let k: integer = 1; }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Condición de for debe ser boolean (obtenido: integer)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  (sin símbolos)
+  Scope: for_1
+    - i:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - k:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Try/Catch válido
+======================================================================
+Código:
+try { let a: integer = 1; } catch (e) { let msg: string = "err"; }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  (sin símbolos)
+  Scope: try_1
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+  Scope: catch_1
+    - e:
+        Tipo: exception
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - msg:
+        Tipo: string
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Catch con id duplicado (debe fallar)
+======================================================================
+Código:
+try { let a: integer = 0; } catch (e) { let e: integer = 1; }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Variable e ya declarada!
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  (sin símbolos)
+  Scope: try_1
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+  Scope: catch_1
+    - e:
+        Tipo: exception
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Switch válido
+======================================================================
+Código:
+let x: integer = 2;
+            switch (x) {
+                case 1: { let a: integer = 10; }
+                case 2: { let b: integer = 20; }
+                default: { let c: integer = 0; }
+            }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 3
+  - b:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 4
+  - c:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 5
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Switch con case duplicado (debe fallar)
+======================================================================
+Código:
+let x: integer = 2;
+            switch (x) {
+                case 1: { let a: integer = 10; }
+                case 1: { let b: integer = 20; }
+            }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L4: Case duplicado: 1
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 3
+  - b:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 4
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Arit: suma de enteros
+======================================================================
+Código:
+let a: integer = 1 + 2;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Arit: precedencia * sobre +
+======================================================================
+Código:
+let a: integer = 1 + 2 * 3;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Arit: modulo válido
+======================================================================
+Código:
+let a: integer = 7 % 3;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Arit: resta inválida con string (debe fallar)
+======================================================================
+Código:
+let a: integer = 1 - "x";
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Operación '-' inválida entre integer[0] y string[0]
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Arit: suma inválida boolean+int (debe fallar)
+======================================================================
+Código:
+let a: integer = true + 1;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Operación '+' inválida entre boolean[0] y integer[0]
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Rel: menor que válido
+======================================================================
+Código:
+let b: boolean = 1 < 2;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Rel: <= válido
+======================================================================
+Código:
+let b: boolean = 2 <= 2;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Rel: > con string (debe fallar)
+======================================================================
+Código:
+let b: boolean = "a" > "b";
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Comparaciones relacionales requieren enteros escalares (obtenido: string[0] y string[0])
+  2. ERROR L1: Tipo incompatible: boolean vs string
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Eq: ints iguales
+======================================================================
+Código:
+let b: boolean = 3 == 3;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Eq: tipos distintos (debe fallar)
+======================================================================
+Código:
+let b: boolean = 1 == true;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: No se pueden comparar integer[0] con boolean[0]
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Log: AND válido
+======================================================================
+Código:
+let b: boolean = true && false;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Log: OR válido
+======================================================================
+Código:
+let b: boolean = true || false;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Log: mezcla inválida (debe fallar)
+======================================================================
+Código:
+let b: boolean = 1 && true;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Operador '&&' requiere boolean && boolean (obtenido: integer[0] y boolean[0])
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Un: negación booleana
+======================================================================
+Código:
+let b: boolean = !false;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Un: menos unario válido
+======================================================================
+Código:
+let x: integer = -5;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Un: menos unario inválido (debe fallar)
+======================================================================
+Código:
+let x: integer = -"a";
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Operador '-' unario requiere integer (obtenido: string[0])
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Un: negación inválida (debe fallar)
+======================================================================
+Código:
+let b: boolean = !1;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L1: Operador '!' requiere boolean (obtenido: integer[0])
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Mixta: !(1<2 && 3<4) || false
+======================================================================
+Código:
+let b: boolean = !(1 < 2 && 3 < 4) || false;
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - b:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Continue inválido
+======================================================================
+Código:
+let x: integer = 2;
+            continue;
+            break;
+
+⚠️  Análisis completado con errores:
+  1. ERROR L2: Solo puedes usar break si estas en un ciclo while o for
+  2. ERROR L3: Solo puedes usar break si estas en un ciclo while o for
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - x:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: LLamada a función
+======================================================================
+Código:
+function add(a: integer, b: integer): integer {
+                let r: integer = a + b;
+                return r;
+            }
+
+            let c: integer = add(1,2);
+            
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - add:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  - c:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 6
+  Scope: function_add
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - b:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+    - r:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 2
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Return con llamada a función (válido)
+======================================================================
+Código:
+function hola(arg: integer): integer {
+                return arg + 1;
+            }
+
+            function adios(arg: integer): integer {
+                return hola(arg);
+            }
+
+            let t: integer = adios(5);
+         
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - hola:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  - adios:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 5
+  - t:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 9
+  Scope: function_hola
+    - arg:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+  Scope: function_adios
+    - arg:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 5
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Return con llamada a función (tipo de retorno incorrecto, inválido)
+======================================================================
+Código:
+function hola(arg: integer): integer {
+                return arg + 1;
+            }
+
+            function adios(arg: integer): boolean {
+                // aquí se retorna un integer donde se esperaba boolean -> debe fallar
+                return hola(arg);
+            }
+         
+
+⚠️  Análisis completado con errores:
+  1. ERROR L7: Tipo de retorno esperado boolean y recibido integer
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - hola:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 1
+  - adios:
+      Tipo: boolean
+      Dimensión: 0
+      Mutable: False
+      Clase Padre: None
+      Kind: function
+      Línea: 5
+  Scope: function_hola
+    - arg:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+  Scope: function_adios
+    - arg:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: False
+        Clase Padre: None
+        Kind: variable
+        Línea: 5
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+PRUEBA: Foreach válido en array 1D
+======================================================================
+Código:
+let arr: integer[] = [1,2,3];
+        foreach (x in arr) {
+        let y: integer = x + 1;
+        }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - arr:
+      Tipo: integer
+      Dimensión: 1
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  Scope: foreach_2
+    - x:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 2
+    - y:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 3
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Foreach válido en array 2D
+======================================================================
+Código:
+let mat: integer[][] = [[1,2],[3,4]];
+        foreach (row in mat) {
+            foreach (val in row) {
+                let z: integer = val;
+            }
+        }
+
+✅ Análisis semántico exitoso (sin errores)
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - mat:
+      Tipo: integer
+      Dimensión: 2
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  Scope: foreach_2
+    - row:
+        Tipo: integer
+        Dimensión: 1
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 2
+    Scope: foreach_3
+      - val:
+          Tipo: integer
+          Dimensión: 0
+          Mutable: True
+          Clase Padre: None
+          Kind: variable
+          Línea: 3
+      - z:
+          Tipo: integer
+          Dimensión: 0
+          Mutable: True
+          Clase Padre: None
+          Kind: variable
+          Línea: 4
+
+Resultado de la prueba: PASÓ (se esperaba OK)
+
+======================================================================
+PRUEBA: Foreach sobre no-array (debe fallar)
+======================================================================
+Código:
+let a: integer = 5;
+            foreach (x in a) {
+                let y: integer = x;
+            }
+
+⚠️  Análisis completado con errores:
+  1. ERROR L2: La expresión en foreach debe ser un arreglo (obtenido: integer[0])
+
+----------------------------------------
+TABLA DE SÍMBOLOS
+----------------------------------------
+Scope: Global
+  - a:
+      Tipo: integer
+      Dimensión: 0
+      Mutable: True
+      Clase Padre: None
+      Kind: variable
+      Línea: 1
+  Scope: foreach_2
+    - x:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 2
+    - y:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 3
+
+Resultado de la prueba: PASÓ (se esperaba ERROR)
+
+======================================================================
+RESUMEN
+======================================================================
+Pruebas pasadas: 48/49 (98.0%)
+⚠️  Algunas pruebas no se comportaron como se esperaba. 
