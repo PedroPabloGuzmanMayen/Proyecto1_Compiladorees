@@ -56,12 +56,11 @@ class PythonIDE:
 
     # ---------------- UI creation ----------------
     def create_header(self):
-        """Create the header with tool buttons (no emojis by default)"""
+        """Create the header with tool buttons """
         self.header_frame = tk.Frame(self.root, bg='#3c3c3c', height=50)
         self.header_frame.pack(fill='x', padx=5, pady=5)
         self.header_frame.pack_propagate(False)
         
-        # File operations — text-only buttons. If you add icons into ~/.local/share/python_ide_icons/ they will be used.
         btn_configs = [
             ('Nuevo', self.new_file, 'new'),
             ('Abrir', self.open_file, 'open'),
@@ -70,44 +69,45 @@ class PythonIDE:
             ('Cortar', self.cut_text, 'cut'),
             ('Copiar', self.copy_text, 'copy'),
             ('Pegar', self.paste_text, 'paste'),
-            ('Ejecutar', self.run_docker_compiscript, 'run')
         ]
-        # Left group: first four are file ops, then separators, then edit ops, then run
         for text, cmd, icon_name in btn_configs[:4]:
             icon = self.load_icon(icon_name)
             if icon:
                 tk.Button(self.header_frame, image=icon, text=text, compound='left',
-                          command=cmd, bg='#4a4a4a', fg='white', relief='flat', padx=8).pack(side='left', padx=2)
+                        command=cmd, bg='#4a4a4a', fg='white', relief='flat', padx=8).pack(side='left', padx=2)
             else:
                 tk.Button(self.header_frame, text=text, command=cmd,
-                          bg='#4a4a4a', fg='white', relief='flat', padx=10).pack(side='left', padx=2)
+                        bg='#4a4a4a', fg='white', relief='flat', padx=10).pack(side='left', padx=2)
         
         tk.Frame(self.header_frame, width=2, bg='#666666').pack(side='left', fill='y', padx=10)
         
-        for text, cmd, icon_name in btn_configs[4:7]:
+        for text, cmd, icon_name in btn_configs[4:]:
             icon = self.load_icon(icon_name)
             if icon:
                 tk.Button(self.header_frame, image=icon, text=text, compound='left',
-                          command=cmd, bg='#4a4a4a', fg='white', relief='flat', padx=8).pack(side='left', padx=2)
+                        command=cmd, bg='#4a4a4a', fg='white', relief='flat', padx=8).pack(side='left', padx=2)
             else:
                 tk.Button(self.header_frame, text=text, command=cmd,
-                          bg='#4a4a4a', fg='white', relief='flat', padx=10).pack(side='left', padx=2)
+                        bg='#4a4a4a', fg='white', relief='flat', padx=10).pack(side='left', padx=2)
         
         tk.Frame(self.header_frame, width=2, bg='#666666').pack(side='left', fill='y', padx=10)
         
-        # Run button (make it more visible)
+        # Botón Run: ahora usa run_current_python_with_cps
         run_icon = self.load_icon('run')
         if run_icon:
-            self.run_button = tk.Button(self.header_frame, image=run_icon, text='Ejecutar', compound='left',
-                                command=self.run_docker_compiscript, bg='#0d7377', fg='white', relief='flat', padx=10)
+            self.run_button = tk.Button(
+                self.header_frame, image=run_icon, text='Ejecutar', compound='left',
+                command=self.run_current_python_with_cps, bg='#0d7377', fg='white', relief='flat', padx=10
+            )
         else:
-            self.run_button = tk.Button(self.header_frame, text="▶ Ejecutar", command=self.run_docker_compiscript,
-                                bg='#0d7377', fg='white', relief='flat', padx=10)
+            self.run_button = tk.Button(
+                self.header_frame, text="▶ Ejecutar",
+                command=self.run_current_python_with_cps, bg='#0d7377', fg='white', relief='flat', padx=10
+            )
         self.run_button.pack(side='left', padx=2)
         
-        # File name label
-        self.file_label = tk.Label(self.header_frame, text="Sin título", 
-                                  bg='#3c3c3c', fg='white', font=('Arial', 10))
+        self.file_label = tk.Label(self.header_frame, text="Sin título",
+                                bg='#3c3c3c', fg='white', font=('Arial', 10))
         self.file_label.pack(side='right', padx=10)
 
     def create_main_layout(self):
@@ -115,7 +115,6 @@ class PythonIDE:
         self.main_frame = tk.Frame(self.root, bg='#2b2b2b')
         self.main_frame.pack(fill='both', expand=True, padx=5, pady=5)
         
-        # Create paned window for resizable panels
         self.paned_window = tk.PanedWindow(self.main_frame, orient='horizontal', 
                                           bg='#2b2b2b', sashwidth=5)
         self.paned_window.pack(fill='both', expand=True)
@@ -124,17 +123,14 @@ class PythonIDE:
         """Create the text editor with console panel below"""
         self.editor_frame = tk.Frame(self.paned_window, bg='#2b2b2b')
         
-        # Editor with line numbers
         self.editor_container = tk.Frame(self.editor_frame, bg='#2b2b2b')
         self.editor_container.pack(fill='both', expand=True)
         
-        # Line numbers
         self.line_numbers = tk.Text(self.editor_container, width=4, padx=3, takefocus=0,
                                    border=0, state='disabled', wrap='none',
                                    bg='#3c3c3c', fg='#888888', font=('Consolas', 11))
         self.line_numbers.pack(side='left', fill='y')
         
-        # Text editor
         self.text_editor = scrolledtext.ScrolledText(
             self.editor_container,
             wrap='none',
@@ -233,7 +229,7 @@ class PythonIDE:
         self.root.bind('<Control-o>', lambda e: self.open_file())
         self.root.bind('<Control-s>', lambda e: self.save_file())
         self.root.bind('<Control-Shift-S>', lambda e: self.save_as_file())
-        self.root.bind('<F5>', lambda e: self.run_docker_compiscript())
+        self.root.bind('<F5>', lambda e: self.run_current_python_with_cps())  # ← aquí el cambio
         
         # Window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -409,66 +405,47 @@ class PythonIDE:
             pass
 
     # ---------------- Running code ----------------
-    def run_docker_compiscript(self):
-        """Ejecutar Compiscript dentro de Docker y mostrar stdout/stderr en la consola integrada"""
-        docker_exe = shutil.which('docker')
-        if not docker_exe:
-            messagebox.showerror("Error", "Docker no está instalado o no está en PATH.")
+    def run_current_python_with_cps(self):
+        python_exe = shutil.which('python3') or shutil.which('python')
+        if not python_exe:
+            messagebox.showerror("Error", "No se encontró python3 en PATH.")
             return
-        
-        image_name = "csp-image"
-        try:
-            img_check = subprocess.run([docker_exe, 'images', '-q', image_name],
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if not img_check.stdout.strip():
-                msg = (f"La imagen Docker '{image_name}' no se encontró.\n\n"
-                    f"Construye la imagen desde la raíz del proyecto con:\n\n"
-                    f"  docker build --rm . -t {image_name}\n\n"
-                    "Luego vuelve a intentar ejecutar desde el IDE.")
-                messagebox.showwarning("Imagen Docker no encontrada", msg)
-                self.append_console(f"\n[WARN] Imagen Docker '{image_name}' no encontrada. "
-                                    f"Construirla con:\n  docker build --rm . -t {image_name}\n")
-                return
-        except Exception as e:
-            messagebox.showerror("Error", f"Error comprobando imágenes Docker: {e}")
+        if not self.current_file:
+            messagebox.showwarning("Sin archivo", "Abre o guarda un .py antes de ejecutar.")
             return
-    
-        host_dir = os.path.abspath(self.current_directory)
-        # aseguramos guardar antes de ejecutar
+        if not self.current_file.lower().endswith('.py'):
+            messagebox.showwarning("Archivo no Python", "El archivo activo no es .py")
+            return
         if not self.file_saved:
             self.save_file()
-    
-        # Ejecutar ANTLR y luego el Driver.py sobre program.cps
-        inner_cmd = "antlr -Dlanguage=Python3 Compiscript.g4 && python3 test.py program.cps"
-        docker_cmd = [
-            docker_exe, "run", "--rm",
-            "-v", f"{host_dir}:/program",
-            image_name,
-            "bash", "-c", inner_cmd
-        ]
-    
+            if not self.file_saved:
+                return
+        script_dir = os.path.dirname(self.current_file) or os.getcwd()
+        cps_arg = "program.cps"
+        if not os.path.exists(os.path.join(script_dir, cps_arg)):
+            alt = os.path.join("..", "program.cps")
+            if os.path.exists(os.path.join(script_dir, alt)):
+                cps_arg = alt
+        cmd = [python_exe, os.path.basename(self.current_file), cps_arg]
         def target():
             try:
                 self.run_button.config(state='disabled')
-                self.append_console("\n=== Iniciando ejecución en Docker ===\n")
-                proc = subprocess.Popen(docker_cmd, stdout=subprocess.PIPE,
-                                        stderr=subprocess.STDOUT, text=True)
+                self.append_console("\n=== Ejecutando localmente ===\n")
+                proc = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 self.run_process = proc
                 for line in iter(proc.stdout.readline, ''):
                     if not line:
                         break
                     self.append_console(line)
                 proc.wait()
-                self.append_console(f"\n=== Contenedor finalizado (exit {proc.returncode}) ===\n")
+                self.append_console(f"\n=== Proceso finalizado (exit {proc.returncode}) ===\n")
             except Exception as e:
-                self.append_console(f"\nError al ejecutar en Docker: {e}\n")
+                self.append_console(f"\nError al ejecutar: {e}\n")
             finally:
                 self.run_button.config(state='normal')
                 self.run_process = None
     
         threading.Thread(target=target, daemon=True).start()
-    
-    
 
     def append_console(self, text):
         """Append text to the output_console in a thread-safe manner."""
