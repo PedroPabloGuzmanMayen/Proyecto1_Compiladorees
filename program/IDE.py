@@ -127,8 +127,8 @@ class PythonIDE:
         self.editor_container.pack(fill='both', expand=True)
         
         self.line_numbers = tk.Text(self.editor_container, width=4, padx=3, takefocus=0,
-                                   border=0, state='disabled', wrap='none',
-                                   bg='#3c3c3c', fg='#888888', font=('Consolas', 11))
+                                border=0, state='disabled', wrap='none',
+                                bg='#3c3c3c', fg='#888888', font=('Consolas', 11))
         self.line_numbers.pack(side='left', fill='y')
         
         self.text_editor = scrolledtext.ScrolledText(
@@ -143,20 +143,41 @@ class PythonIDE:
             borderwidth=0
         )
         self.text_editor.pack(side='left', fill='both', expand=True)
+    
+        # Sincroniza el scroll vertical del editor con la vista de la numeración
+        try:
+            self._orig_yscroll = self.text_editor['yscrollcommand']
+        except Exception:
+            self._orig_yscroll = None
+        self.text_editor['yscrollcommand'] = self.on_texteditor_scroll
+    
+        # Rueda del mouse en numeración -> que scrollee el editor
+        self.line_numbers.bind('<MouseWheel>', lambda e: self.text_editor.event_generate('<MouseWheel>', delta=e.delta))
+        self.line_numbers.bind('<Button-4>', lambda e: self.text_editor.yview_scroll(-1, 'units'))
+        self.line_numbers.bind('<Button-5>', lambda e: self.text_editor.yview_scroll(1, 'units'))
         
-        # Console (output) panel at the bottom of editor frame
         self.console_frame = tk.Frame(self.editor_frame, bg='#222222', height=200)
         self.console_frame.pack(fill='x', side='bottom')
         self.console_frame.pack_propagate(False)
         
         tk.Label(self.console_frame, text="Consola (stdout / stderr)", bg='#2b2b2b', fg='white').pack(anchor='w', padx=6, pady=(4,0))
         self.output_console = scrolledtext.ScrolledText(self.console_frame, height=10,
-                                                       bg='#0f0f0f', fg='#e6e6e6', font=('Consolas',11),
-                                                       state='disabled')
+                                                    bg='#0f0f0f', fg='#e6e6e6', font=('Consolas',11),
+                                                    state='disabled')
         self.output_console.pack(fill='both', expand=True, padx=6, pady=6)
         
-        # Add to paned window
         self.paned_window.add(self.editor_frame, width=800)
+
+    def on_texteditor_scroll(self, first, last):
+        try:
+            self.line_numbers.yview_moveto(first)
+        except Exception:
+            pass
+        try:
+            if hasattr(self.text_editor, 'vbar') and hasattr(self.text_editor.vbar, 'set'):
+                self.text_editor.vbar.set(first, last)
+        except Exception:
+            pass
 
     def create_file_manager(self):
         """Create the file manager"""
