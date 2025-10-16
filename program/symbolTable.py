@@ -37,6 +37,7 @@ class Symbol_table():
         self.parent = parent
         self.children = [] #Guarda los elementos hijos
         self.scope = "Global" if parent is None else scope
+        self.scope_map = {}
 
     def insert_symbol(self,identifier, type, scope, line_pos, is_mutable, kind, params, return_type, parent_class, dim):
         if identifier in self.elements:
@@ -61,6 +62,7 @@ class Symbol_table():
     def create_child_scope(self, scope_name):
         child = Symbol_table(parent=self, scope=scope_name)
         self.children.append(child)
+        self.scope_map[scope_name] = child
         return child
     
     

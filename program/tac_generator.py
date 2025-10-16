@@ -134,8 +134,10 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
     def visitReturnStatement(self, ctx:CompiscriptParser.ReturnStatementContext):
-        self.quadruple_table.insert_into_table(("endfunc", None, None, None))
-        return self.visitChildren(ctx)
+        if ctx.expression():
+            value = self.visit(ctx.expression())
+            self.quadruple_table.insert_into_table("RETURN", value, None, None)
+        self.quadruple_table.insert_into_table("endfunc", None, None, None)
 
 
     # Visit a parse tree produced by CompiscriptParser#tryCatchStatement.
@@ -167,19 +169,20 @@ class tac_generator(CompiscriptVisitor):
             for param_ctx in ctx.parameters().parameter():
                 param_name.append(param_ctx.Identifier().getText())
                 params+=1
-        type = self.symbol_table[func_name].type
+        type = self.symbol_table.elements[func_name].type
 
         self.quadruple_table.insert_into_table("FUNC", func_name, params, type)
         for i in param_name:
             self.quadruple_table.insert_into_table("param", i, None, None)
-        
+        # Entrar a un nuevo scope
 
-
-        #Ahora revisar que tiene la función e ir guardando esa información 
-
-        
-        
-        return self.visitChildren(ctx)
+        old_table = self.symbol_table
+        self.symbol_table = old_table.scope_map["function_" + func_name]
+        if ctx.block():
+            self.visit(ctx.block())
+        self.symbol_table = old_table
+        self.reset_temporal_counter()
+        return func_name
 
 
     # Visit a parse tree produced by CompiscriptParser#parameters.
@@ -312,12 +315,14 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#leftHandSide.
     def visitLeftHandSide(self, ctx:CompiscriptParser.LeftHandSideContext):
-        return self.visitChildren(ctx)
+        if len(ctx.suffixOp()) == 0:
+            return self.visit(ctx.primaryAtom())
+        return self.visit(ctx.primaryAtom())  # placeholder para llamadas/indexaciones
 
 
     # Visit a parse tree produced by CompiscriptParser#IdentifierExpr.
     def visitIdentifierExpr(self, ctx:CompiscriptParser.IdentifierExprContext):
-        return self.visitChildren(ctx)
+        return ctx.Identifier().getText()
 
 
     # Visit a parse tree produced by CompiscriptParser#NewExpr.

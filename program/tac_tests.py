@@ -19,7 +19,12 @@ def run_code_gen(code_snippet: str):
 
 
 code = """ let hola:integer = (1+3)-(4*(5/2))
-let adios:integer = (1+2)
+
+function add(a: integer,b: integer): integer {
+    let d: integer = 1+4+5;
+    return a+b;
+}
+
 """
 
 run_code_gen(code)

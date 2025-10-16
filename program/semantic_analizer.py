@@ -496,6 +496,7 @@ class semantic_analyzer(CompiscriptVisitor):
 
     def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
         """Verifica la condición del while y marca que estamos dentro de un bucle."""
+        self.enter_scope(f"while_{self.get_line_number(ctx)}")
         cond_ctx = ctx.expression()
         cond_type, _ = self.infer_expression_type(cond_ctx)
         if cond_type is None:
@@ -508,10 +509,12 @@ class semantic_analyzer(CompiscriptVisitor):
         if ctx.block():
             self.visit(ctx.block())
         self.in_loop -= 1
+        self.exit_scope()
         return None
 
     def visitDoWhileStatement(self, ctx:CompiscriptParser.DoWhileStatementContext):
         """Visita el bloque do y luego verifica la condición del while."""
+        self.enter_scope(f"while_{self.get_line_number(ctx)}")
         self.in_loop += 1
         if ctx.block():
             self.visit(ctx.block())
@@ -524,6 +527,7 @@ class semantic_analyzer(CompiscriptVisitor):
             self.add_error(ctx, f"Condición de do-while debe ser boolean (obtenido: {cond_type})")
 
         self.in_loop -= 1
+        self.exit_scope()
         return None
 
     def visitForStatement(self, ctx:CompiscriptParser.ForStatementContext):
