@@ -22,6 +22,11 @@ class Register:
         # Solo para arrays
 
         self.dim = dim #Si es 1, es un array 1D, si es 2 es un array 2D
+        self.address = 0
+
+    def update_memory_address(self, relative_memor_addr):
+        self.address = relative_memor_addr
+
         
 """
 Consideraciones: cualquier variable o función dentro de el ámbito de una clase se v a considerar como un atributo o método de la clase 
@@ -58,6 +63,7 @@ class Symbol_table():
         self.children.append(child)
         return child
     
+    
     def add_class_member(self, class_name, member_reg: Register):
         """
         Adjunta un miembro (campo o método) al registro de la clase dada.
@@ -78,6 +84,9 @@ class Symbol_table():
         if not cls or cls.kind != "class" or not cls.members:
             return None
         return cls.members.get(member_name)
+    
+    def add_addres(self, symbol_name, address):
+        self.elements[symbol_name].update_memory_address(address)
         
 
     def print_table(self, output=sys.stdout, indent=0):

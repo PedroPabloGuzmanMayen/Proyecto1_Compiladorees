@@ -188,7 +188,24 @@ def main():
         """let a: integer = 5;
             foreach (x in a) {
                 let y: integer = x;
-            }""", False)
+            }""", False),
+
+        ("No debe fallar", 
+         """
+
+function crearContador(): integer {
+  function siguiente(): integer {
+    return 1;
+  }
+  return siguiente();
+}
+     
+        """, True),
+        ("No sér", 
+         """
+const hola: Integer = 1*4+3
+
+         """, True)
 
         
 
