@@ -20,14 +20,10 @@ def run_code_gen(code_snippet: str):
 
 code = """ let hola:integer = (1+3)-(4*(5/2));
 
-hola = 4;
+let adios: boolean = 1 < 2;
+let hello: boolean = 1 == 2 || 2==1 || 1<3
 
-function add(a: integer,b: integer): integer {
-    let d: integer = 1+4+5;
-    d = 1;
-    a = 2;
-    return a+b;
-}
+
 
 """
 

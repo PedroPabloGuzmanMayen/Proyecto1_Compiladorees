@@ -257,22 +257,58 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#logicalOrExpr.
     def visitLogicalOrExpr(self, ctx:CompiscriptParser.LogicalOrExprContext):
-        return self.visitChildren(ctx)
+        if len(ctx.logicalAndExpr()) == 1:
+            return self.visit(ctx.logicalAndExpr(0))
+        left = self.visit(ctx.logicalAndExpr(0))
+        for i in range(1, len(ctx.logicalAndExpr())):
+            op = ctx.getChild(2*i - 1).getText()  
+            right = self.visit(ctx.logicalAndExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#logicalAndExpr.
     def visitLogicalAndExpr(self, ctx:CompiscriptParser.LogicalAndExprContext):
-        return self.visitChildren(ctx)
+        if len(ctx.equalityExpr()) == 1:
+            return self.visit(ctx.equalityExpr(0))
+        left = self.visit(ctx.equalityExpr(0))
+        for i in range(1, len(ctx.equalityExpr())):
+            op = ctx.getChild(2*i - 1).getText()  
+            right = self.visit(ctx.equalityExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#equalityExpr.
     def visitEqualityExpr(self, ctx:CompiscriptParser.EqualityExprContext):
-        return self.visitChildren(ctx)
+        if len(ctx.relationalExpr()) == 1:
+            return self.visit(ctx.relationalExpr(0))
+        left = self.visit(ctx.relationalExpr(0))
+        for i in range(1, len(ctx.relationalExpr())):
+            op = ctx.getChild(2*i - 1).getText()  
+            right = self.visit(ctx.relationalExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#relationalExpr.
     def visitRelationalExpr(self, ctx:CompiscriptParser.RelationalExprContext):
-        return self.visitChildren(ctx)
+        if len(ctx.additiveExpr()) == 1:
+            return self.visit(ctx.additiveExpr(0))
+        left = self.visit(ctx.additiveExpr(0))
+        for i in range(1, len(ctx.additiveExpr())):
+            op = ctx.getChild(2*i - 1).getText()  
+            right = self.visit(ctx.additiveExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#additiveExpr.
