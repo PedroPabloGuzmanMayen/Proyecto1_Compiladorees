@@ -20,8 +20,12 @@ class tac_generator(CompiscriptVisitor):
         self.in_use_temporals = []
 
     def temporal_generator(self):
-        temporal_counter += 1
-        return f"t{temporal_counter}"
+        self.temporal_counter += 1
+        return f"t{self.temporal_counter}"
+    
+    def memory_allocator(self, type, dimension, size):
+        pass
+
         
     def free_temporal(self, id):
         pass
@@ -50,9 +54,17 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#variableDeclaration.
     def visitVariableDeclaration(self, ctx:CompiscriptParser.VariableDeclarationContext):
+
+        var_name = ctx.Identifier().getText()
+        var_type = self.symbol_table.elements[var_name].type
+        var_dimension = self.symbol_table.elements[var_name].dim
         if ctx.initializer():
-            self.visit(ctx.initializer())
-        return None
+            value = self.visit(ctx.initializer())
+            self.quadruple_table.insert_into_table("=", value, None, var_name)
+        self.reset_temporal_counter()
+
+        return var_name
+    
 
 
     # Visit a parse tree produced by CompiscriptParser#constantDeclaration.
@@ -67,8 +79,7 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#initializer.
     def visitInitializer(self, ctx:CompiscriptParser.InitializerContext):
-        if ctx.expression():
-            self.visit(ctx.expression())
+        return self.visit(ctx.expression())
 
 
     # Visit a parse tree produced by CompiscriptParser#assignment.
@@ -158,9 +169,9 @@ class tac_generator(CompiscriptVisitor):
                 params+=1
         type = self.symbol_table[func_name].type
 
-        self.quadruple_table.add("FUNC", func_name, params, type)
+        self.quadruple_table.insert_into_table("FUNC", func_name, params, type)
         for i in param_name:
-            self.quadruple_table.add("param", i, None, None)
+            self.quadruple_table.insert_into_table("param", i, None, None)
         
 
 
@@ -193,15 +204,18 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#expression.
     def visitExpression(self, ctx:CompiscriptParser.ExpressionContext):
-        if ctx.assignmentExpr():
-            self.visit(ctx.assignmentExpr())
-        return None
+        return self.visit(ctx.assignmentExpr())
 
 
     # Visit a parse tree produced by CompiscriptParser#AssignExpr.
     def visitAssignExpr(self, ctx:CompiscriptParser.AssignExprContext):
-        left = self.visit(ctx.leftHandSide())
-        right = self.visit(ctx.assignmentExpr())
+
+        if ctx.lhs and ctx.assignmentExpr():
+            left = self.visit(ctx.leftHandSide())   
+            right = self.visit(ctx.assignmentExpr())
+            self.quadruple_table.add("=", right, None, left)
+            return left
+        # ExprNoAssign (condicional)
         return self.visitChildren(ctx)
 
 
@@ -241,28 +255,59 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#additiveExpr.
-    def visitAdditiveExpr(self, ctx:CompiscriptParser.AdditiveExprContext):
-        return self.visitChildren(ctx)
+    def visitAdditiveExpr(self, ctx: CompiscriptParser.AdditiveExprContext):
+
+        if len(ctx.multiplicativeExpr()) == 1:
+            return self.visit(ctx.multiplicativeExpr(0))
+        left = self.visit(ctx.multiplicativeExpr(0))
+        for i in range(1, len(ctx.multiplicativeExpr())):
+            op = ctx.getChild(2*i - 1).getText()  
+            right = self.visit(ctx.multiplicativeExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#multiplicativeExpr.
-    def visitMultiplicativeExpr(self, ctx:CompiscriptParser.MultiplicativeExprContext):
-        return self.visitChildren(ctx)
+    def visitMultiplicativeExpr(self, ctx: CompiscriptParser.MultiplicativeExprContext):
+        if len(ctx.unaryExpr()) == 1:
+            return self.visit(ctx.unaryExpr(0))
+        left = self.visit(ctx.unaryExpr(0))
+        for i in range(1, len(ctx.unaryExpr())):
+            op = ctx.getChild(2*i - 1).getText()  # '*', '/', '%'
+            right = self.visit(ctx.unaryExpr(i))
+            temp = self.temporal_generator()
+            self.quadruple_table.insert_into_table(op, left, right, temp)
+            left = temp
+        return left
 
 
     # Visit a parse tree produced by CompiscriptParser#unaryExpr.
-    def visitUnaryExpr(self, ctx:CompiscriptParser.UnaryExprContext):
-        return self.visitChildren(ctx)
+    def visitUnaryExpr(self, ctx: CompiscriptParser.UnaryExprContext):
+        # Si hay solo un hijo, pasa al primary
+        if ctx.getChildCount() == 1:
+            return self.visit(ctx.primaryExpr())
+        # Si hay un operador unario
+        op = ctx.getChild(0).getText()
+        value = self.visit(ctx.unaryExpr())
+        temp = self.quadruple_table.new_temp()
+        self.quadruple_table.add(op, value, None, temp)
+        return temp
 
 
     # Visit a parse tree produced by CompiscriptParser#primaryExpr.
-    def visitPrimaryExpr(self, ctx:CompiscriptParser.PrimaryExprContext):
-        return self.visitChildren(ctx)
-
+    def visitPrimaryExpr(self, ctx: CompiscriptParser.PrimaryExprContext):
+        if ctx.expression():
+            return self.visit(ctx.expression())  # paréntesis
+        elif ctx.literalExpr():
+            return self.visit(ctx.literalExpr())
+        elif ctx.leftHandSide():
+            return self.visit(ctx.leftHandSide())
 
     # Visit a parse tree produced by CompiscriptParser#literalExpr.
-    def visitLiteralExpr(self, ctx:CompiscriptParser.LiteralExprContext):
-        return self.visitChildren(ctx)
+    def visitLiteralExpr(self, ctx: CompiscriptParser.LiteralExprContext):
+        return ctx.getText()
 
 
     # Visit a parse tree produced by CompiscriptParser#leftHandSide.
