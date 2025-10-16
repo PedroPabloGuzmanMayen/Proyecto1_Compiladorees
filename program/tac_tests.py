@@ -18,10 +18,14 @@ def run_code_gen(code_snippet: str):
     intermediate_code_generator.quadruple_table.write_to_console()
 
 
-code = """ let hola:integer = (1+3)-(4*(5/2))
+code = """ let hola:integer = (1+3)-(4*(5/2));
+
+hola = 4;
 
 function add(a: integer,b: integer): integer {
     let d: integer = 1+4+5;
+    d = 1;
+    a = 2;
     return a+b;
 }
 

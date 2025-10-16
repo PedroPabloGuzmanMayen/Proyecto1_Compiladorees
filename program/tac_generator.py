@@ -84,7 +84,24 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#assignment.
     def visitAssignment(self, ctx:CompiscriptParser.AssignmentContext):
-        return self.visitChildren(ctx)
+        # Caso simple: Identifier '=' expression ';'
+        if ctx.Identifier() and len(ctx.expression()) == 1:
+            name = ctx.Identifier().getText()
+            value = self.visit(ctx.expression(0))
+            self.quadruple_table.insert_into_table("=", value, None, name)
+            return name
+
+        # Caso: expression '.' Identifier '=' expression ';'
+        elif len(ctx.expression()) == 2:
+            obj = self.visit(ctx.expression(0))
+            prop = ctx.Identifier().getText()
+            value = self.visit(ctx.expression(1))
+            target = f"{obj}.{prop}"
+            self.quadruple_table.insert_into_table("=", value, None, target)
+            return target
+
+        # fallback
+        return None
 
 
     # Visit a parse tree produced by CompiscriptParser#expressionStatement.
@@ -99,6 +116,7 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#ifStatement.
     def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
+
         return self.visitChildren(ctx)
 
 
