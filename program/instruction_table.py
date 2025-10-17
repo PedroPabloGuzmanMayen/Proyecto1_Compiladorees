@@ -34,6 +34,10 @@ class Quadruple():
                         line = f"{res} = {arg1} {op} {arg2}"
                 elif op in ["+", "-", "*", "/", ">", "<", ">=", "<=", "==", "!=", "&&", "||"]:
                     line = f"{res} = {arg1} {op} {arg2}"
+                elif op == "[]":
+                    line = f"{res} = {arg1}[{arg2}]"
+                elif op == "[]=":
+                    line = f"{res}[{arg2}] = {arg1}"
                 elif op == "if":
                     line = f"if {arg1} goto {res}"
                 elif op == "goto":
@@ -43,21 +47,23 @@ class Quadruple():
                         line = f"goto {res}"
                     else:
                         line = "goto"
-                elif op == "func":
+                elif op == "FUNC":
                     line = f"func {arg1}, n_params={arg2}, ret_type={res}"
                 elif op == "PRINT":
                     line = f"print {res}"
+                elif op == "RETURN":
+                    line = f"return {arg1 if arg1 else ''}"
                 elif op == "endfunc":
                     line = "endfunc"
                 elif op == "param":
                     line = f"param {arg1}"
                 elif op == "call":
                     if res:
-                        line = f"call {arg1}, {arg2}, {res}"
+                        line = f"{res} = call {arg1}, {arg2}"
                     else:
                         line = f"call {arg1}, {arg2}"
-                elif op == "return":
-                    line = f"return {arg1 if arg1 else ''}"
+                elif op == "length":
+                    line = f"{res} = length {arg1}"
                 elif op == "class":
                     line = f"class {arg1}"
                 elif op == "endclass":
@@ -68,4 +74,3 @@ class Quadruple():
                     line = f"# {op} {arg1 or ''} {arg2 or ''} {res or ''}".strip()
                 f.write(f"{line}\n")
         print(f"[✅] TAC legible guardado en '{filename}'")
-
