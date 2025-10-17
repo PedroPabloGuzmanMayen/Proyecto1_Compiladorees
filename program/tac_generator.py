@@ -69,10 +69,15 @@ class tac_generator(CompiscriptVisitor):
     def visitVariableDeclaration(self, ctx:CompiscriptParser.VariableDeclarationContext):
 
         var_name = ctx.Identifier().getText()
+        var_reg = self.symbol_table.elements[var_name]
         var_type = self.symbol_table.elements[var_name].type
         var_dimension = self.symbol_table.elements[var_name].dim
         if ctx.initializer():
             value = self.visit(ctx.initializer())
+            if isinstance(ctx.initializer().expression(), CompiscriptParser.ArrayLiteralContext):
+                arr_expr = ctx.initializer().expression()
+                length = len(arr_expr.expression())
+                var_reg.size = length
             self.quadruple_table.insert_into_table("=", value, None, var_name)
         self.reset_temporal_counter()
 
@@ -229,7 +234,7 @@ class tac_generator(CompiscriptVisitor):
         return None
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
-    def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
+    def visitForeachStatement(self, ctx: CompiscriptParser.ForeachStatementContext):
         ln = self.get_line_number(ctx)
         start_lbl = f"L{ln}_start"
         body_lbl = f"L{ln}_body"
@@ -238,16 +243,18 @@ class tac_generator(CompiscriptVisitor):
         self.start = update_lbl
         self.end = after_lbl
 
-        iter_name = None
-        iterable_node = None
         try:
-            if hasattr(ctx, "Identifier") and ctx.Identifier():
-                iter_name = ctx.Identifier().getText()
+            iter_name = ctx.Identifier().getText()
         except Exception:
             iter_name = None
+
+        iterable_node = None
         try:
-            if hasattr(ctx, "expression") and len(ctx.expression()) > 0:
-                iterable_node = ctx.expression(0)
+            exprs = ctx.expression()
+            if isinstance(exprs, list) and len(exprs) > 0:
+                iterable_node = exprs[0]
+            elif exprs is not None:
+                iterable_node = exprs
         except Exception:
             iterable_node = None
 
@@ -258,49 +265,29 @@ class tac_generator(CompiscriptVisitor):
             except Exception:
                 iterable_val = None
 
-        length = None
-        if isinstance(iterable_val, str) and iterable_val.startswith("[") and iterable_val.endswith("]"):
-            inner = iterable_val[1:-1].strip()
-            length = 0 if inner == "" else inner.count(",") + 1
-        else:
-            try:
-                if hasattr(self.symbol_table, "elements") and iterable_val in self.symbol_table.elements:
-                    elem = self.symbol_table.elements[iterable_val]
-                    if hasattr(elem, "dim") and elem.dim:
-                        length = elem.dim
-            except Exception:
-                length = None
 
-        if length is None:
-            try:
-                txt = ctx.getText()
-                import re
-                m = re.search(r"\(\s*[A-Za-z_]\w*\s+in\s+(.+?)\s*\)", txt)
-                if m:
-                    it_txt = m.group(1).strip()
-                    m2 = re.search(r"\[(.*?)\]", it_txt)
-                    if m2:
-                        inner = m2.group(1).strip()
-                        length = 0 if inner == "" else inner.count(",") + 1
-            except Exception:
-                length = None
-
-        if length is None:
-            return self.visitChildren(ctx)
+        if not iterable_val:
+            return None
 
         idx_temp = self.temporal_generator()
         self.quadruple_table.insert_into_table("=", "0", None, idx_temp)
+
         self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
+
+
         cmp_temp = self.temporal_generator()
-        self.quadruple_table.insert_into_table("<", idx_temp, str(length), cmp_temp)
+        self.quadruple_table.insert_into_table("<", idx_temp, f"{iterable_val}.size", cmp_temp)
         self.quadruple_table.insert_into_table("if", cmp_temp, "goto", body_lbl)
         self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
+
+    
         self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
 
         if iter_name:
             access = f"{iterable_val}[{idx_temp}]"
             self.quadruple_table.insert_into_table("=", access, None, iter_name)
 
+  
         old_table = self.symbol_table
         scope_key = f"foreach_{ln}"
         if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
@@ -309,13 +296,17 @@ class tac_generator(CompiscriptVisitor):
         if getattr(ctx, "block", None) and ctx.block():
             self.visit(ctx.block())
 
+
         self.symbol_table = old_table
+
 
         self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
         inc_temp = self.temporal_generator()
         self.quadruple_table.insert_into_table("+", idx_temp, "1", inc_temp)
         self.quadruple_table.insert_into_table("=", inc_temp, None, idx_temp)
         self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
+
+
         self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
         return None
 
@@ -911,8 +902,18 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#arrayLiteral.
-    def visitArrayLiteral(self, ctx:CompiscriptParser.ArrayLiteralContext):
-        return self.visitChildren(ctx)
+    def visitArrayLiteral(self, ctx: CompiscriptParser.ArrayLiteralContext):
+        elements = []
+        for expr in ctx.expression():
+            val = self.visit(expr)
+            elements.append(val)
+        size = len(elements)
+        arr_temp = self.temporal_generator()
+        self.quadruple_table.insert_into_table("alloc", size, None, arr_temp)
+        for i, val in enumerate(elements):
+            self.quadruple_table.insert_into_table("=", val, None, f"{arr_temp}[{i}]")
+        return arr_temp
+
 
 
     # Visit a parse tree produced by CompiscriptParser#type.
@@ -926,4 +927,4 @@ class tac_generator(CompiscriptVisitor):
 
 
 
-del CompiscriptParser
+
