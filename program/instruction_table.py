@@ -45,6 +45,8 @@ class Quadruple():
                         line = "goto"
                 elif op == "func":
                     line = f"func {arg1}, n_params={arg2}, ret_type={res}"
+                elif op == "PRINT":
+                    line = f"print {res}"
                 elif op == "endfunc":
                     line = "endfunc"
                 elif op == "param":
