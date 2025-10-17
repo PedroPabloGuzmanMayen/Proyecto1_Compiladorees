@@ -195,76 +195,95 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
-    def visitForStatement(self, ctx: CompiscriptParser.ForStatementContext):
+    def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
         ln = self.get_line_number(ctx)
         start_lbl = f"L{ln}_start"
         body_lbl = f"L{ln}_body"
         update_lbl = f"L{ln}_update"
         after_lbl = f"L{ln}_after"
-        old_table = self.symbol_table
-        scope_key = f"for_{ln}"
-        self.symbol_table = old_table.scope_map[scope_key]
 
-        init_done = False
-        if hasattr(ctx, "variableDeclaration") and ctx.variableDeclaration():
-            # Caso: for (let i = 0; ...)
-            vdecl = ctx.variableDeclaration()
-            self.visit(vdecl)
-            init_done = True
-        elif hasattr(ctx, "expressionList") and ctx.expressionList():
-            # Caso: for (i = 0; ...)
-            expr_list = ctx.expressionList(0)
-            self.visit(expr_list)
-            init_done = True
+        iter_name = None
+        iterable_node = None
+        try:
+            if hasattr(ctx, "Identifier") and ctx.Identifier():
+                iter_name = ctx.Identifier().getText()
+        except Exception:
+            iter_name = None
+        try:
+            if hasattr(ctx, "expression") and len(ctx.expression()) > 0:
+                iterable_node = ctx.expression(0)
+        except Exception:
+            iterable_node = None
 
-
-        cond_node = None
-        post_node = None
-        num_exprs = 0
-        if hasattr(ctx, "expression"):
+        iterable_val = None
+        if iterable_node is not None:
             try:
-                num_exprs = len(ctx.expression())
-                if num_exprs == 3:
-                    cond_node = ctx.expression(1)
-                    post_node = ctx.expression(2)
-                elif num_exprs == 2:
-                    cond_node = ctx.expression(0)
-                    post_node = ctx.expression(1)
-                elif num_exprs == 1:
-                    cond_node = ctx.expression(0)
+                iterable_val = self.visit(iterable_node)
             except Exception:
-                pass
+                iterable_val = None
 
-        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
-
-        # Evaluar condición
-        if cond_node is not None:
-            cond_val = self.visit(cond_node)
-            self.quadruple_table.insert_into_table("if", cond_val, "goto", body_lbl)
-            self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
+        length = None
+        if isinstance(iterable_val, str) and iterable_val.startswith("[") and iterable_val.endswith("]"):
+            inner = iterable_val[1:-1].strip()
+            length = 0 if inner == "" else inner.count(",") + 1
         else:
-            # Sin condición → loop infinito
-            self.quadruple_table.insert_into_table("goto", body_lbl, None, None)
+            try:
+                if hasattr(self.symbol_table, "elements") and iterable_val in self.symbol_table.elements:
+                    elem = self.symbol_table.elements[iterable_val]
+                    if hasattr(elem, "dim") and elem.dim:
+                        length = elem.dim
+            except Exception:
+                length = None
 
+        if length is None:
+            try:
+                txt = ctx.getText()
+                import re
+                m = re.search(r"\(\s*[A-Za-z_]\w*\s+in\s+(.+?)\s*\)", txt)
+                if m:
+                    it_txt = m.group(1).strip()
+                    m2 = re.search(r"\[(.*?)\]", it_txt)
+                    if m2:
+                        inner = m2.group(1).strip()
+                        length = 0 if inner == "" else inner.count(",") + 1
+            except Exception:
+                length = None
+
+        if length is None:
+            return self.visitChildren(ctx)
+
+        idx_temp = self.temporal_generator()
+        self.quadruple_table.insert_into_table("=", "0", None, idx_temp)
+        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
+        cmp_temp = self.temporal_generator()
+        self.quadruple_table.insert_into_table("<", idx_temp, str(length), cmp_temp)
+        self.quadruple_table.insert_into_table("if", cmp_temp, "goto", body_lbl)
+        self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
         self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
 
+        if iter_name:
+            access = f"{iterable_val}[{idx_temp}]"
+            self.quadruple_table.insert_into_table("=", access, None, iter_name)
+
+        old_table = self.symbol_table
+        scope_key = f"foreach_{ln}"
+        if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
+            self.symbol_table = old_table.scope_map[scope_key]
 
         if getattr(ctx, "block", None) and ctx.block():
             self.visit(ctx.block())
 
+        self.symbol_table = old_table
 
         self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
-        if post_node is not None:
-            self.visit(post_node)
-
-
+        inc_temp = self.temporal_generator()
+        self.quadruple_table.insert_into_table("+", idx_temp, "1", inc_temp)
+        self.quadruple_table.insert_into_table("=", inc_temp, None, idx_temp)
         self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
         self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
-        self.symbol_table = old_table
-        self.reset_temporal_counter()
         return None
 
-     # Visit a parse tree produced by CompiscriptParser#forStatement.
+    # Visit a parse tree produced by CompiscriptParser#forStatement.
     def visitForStatement(self, ctx: CompiscriptParser.ForStatementContext):
         ln = self.get_line_number(ctx)
         start_lbl = f"L{ln}_start"
