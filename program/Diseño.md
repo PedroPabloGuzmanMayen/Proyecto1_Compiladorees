@@ -34,7 +34,7 @@ x = 1 + 2
 
 ## Expresiones aritméticas
 
-Estas harán uso de temporales si son muy complejas. 
+Estas harán uso de temporales si son muy complejas. El resultado final se asigna a la variable que tiene el valor de la operación. 
 
 ### Ejemplo
 
@@ -53,7 +53,7 @@ x = t3
 
 ## Expresiones booleanas
 
-Hará uso de el número de línea de código para determinar donde debe dar el salto. 
+Hará uso de el número de línea de código para determinar donde debe dar el salto.  Si son muy compeljas va guardando los resultados intermedios en temporales 
 
 ### Ejemplo
 
@@ -79,6 +79,8 @@ L2:
 ---
 
 ## Ciclos While
+
+Se crean 32 etiquetas: una de inicio y ahí se guarda el resultado de la condición que va a evaluar el ciclo; una de cuerpo que indica que se debe hacer si se cumple la condición, luego hacemos un salto de línea a la condición inicial para evaluar si debemos volver a repetir el procedimiento; finalmente se añade una etiqueta final que indica que se debe hacer luego del ciclo. 
 
 ### Ejemplo
 
@@ -106,6 +108,7 @@ L3:
 
 ## Ciclos for
 
+Se inicializa la variable que sirve para mantener el ciclo y luego se crean 3 etiquetas: una para evaluar la condición, otra para indicar que se debe hacer si se cumple la condición y otra que indique lo que hay que hacer cuando no se cumple la condición inicial. 
 ### Ejemplo
 
 Código fuente:
@@ -133,6 +136,11 @@ L3:
 ---
 
 ## Switch statements
+
+- Cada `case` se convierte en una comparación.
+- Cada bloque tiene una etiqueta (`L1`, `L2`…).
+- El `default` se traduce a un salto directo si no coincide ningún caso.
+- Al final se agrega otra etiqueta que marca el final del switch. 
 
 ### Ejemplo
 
@@ -173,6 +181,11 @@ L4:
 
 ## Declaración de funciones
 
+- `func` marca el inicio de la función con metadatos (nombre, parámetros, tipo retorno).
+- `param` define los parámetros que entran al entorno local.
+- `return` indica el valor de retorno.
+- `endfunc` marca el fin del bloque de función.
+
 ### Ejemplo
 
 Código fuente
@@ -196,6 +209,10 @@ endfunc
 
 ## Llamada a funciones
 
+- Se empujan los argumentos con `param`.
+- Luego se realiza la llamada con `call` indicando la cantidad de parámetros.
+- No se almacena retorno, porque no se usa el resultado.
+
 Código fuente
 ```compiscript
 add(1, 2);
@@ -211,6 +228,9 @@ call add, 2
 ---
 
 ## Asignación del valor de retorno de una función
+
+- El resultado de la función se guarda en un temporal
+- Luego se asigna a la variable.
 
 ### Ejemplo
 
@@ -231,15 +251,30 @@ y = tRet
 
 ## Delcaración de clases
 
+- `class` / `endclass` delimitan la clase.
+- `field` indica un atributo de la clase.
+- `param this` referencia la instancia actual.
+- Los métodos se traducen como funciones con `this` como primer parámetro.
+
 ### Ejemplo
 
-Código fuente
+Código fuente:
 ```compiscript
-y = add(1, 2);
+class Animal {
+  nombre: string;
+
+  function constructor(nombre: string) {
+    this.nombre = nombre;
+  }
+
+  function hablar(): string {
+    return this.nombre + " hace ruido.";
+  }
+}
 ```
 
 TAC:
-```compiscript
+```tac
 class Animal
 field nombre
 
@@ -261,18 +296,22 @@ endclass
 
 ---
 
-## Instanciación
+## Instanciación y métodos
+
+- Para llamar a un método de una clase se usa la instrucción call, se indica la clase y el método que se quiere usar separado por un punto. .
+- Luego se puede asignar el resultado a una variable .
+- Se sigue el mismo procedimiento para crear un nuevo objeto pero se usa el constructor de la variable.
 
 ### Ejemplo
 
-Código fuente
+Código fuente:
 ```compiscript
 a = new Animal("Perro");
 a.hablar();
 ```
 
 TAC:
-```compiscript
+```tac
 param "Perro"
 call Animal.constructor, 1, t1
 a = t1
@@ -281,6 +320,65 @@ call Animal.hablar, 1, t2
 ```
 
 ---
+
+## Arreglos
+
+- `alloc n, -, t` → reserva espacio para `n` elementos.
+- `[]=` → asigna valor en una posición.
+- `[]` → accede al valor almacenado.
+
+### Ejemplo
+
+Código fuente:
+```compiscript
+arr = [1, 2, 3];
+arr[1] = 5;
+x = arr[2];
+```
+
+TAC:
+```tac
+alloc 3, -, t1
+t1[0] = 1
+t1[1] = 2
+t1[2] = 3
+arr = t1
+[]= 5, 1, arr
+[] arr, 2, t2
+x = t2
+```
+
+---
+
+## Excepciones
+
+- `ON_EXCEPTION` → indica el punto de salto en caso de error.
+- `EXC_ASSIGN` → vincula el error capturado a una variable (`e`).
+- `label Lx_end` marca el final del bloque `try-catch`.
+
+### Ejemplo
+
+Código fuente:
+```compiscript
+try {
+  risky();
+} catch (e) {
+  print(e);
+}
+```
+
+TAC:
+```tac
+label L1_try:
+ON_EXCEPTION -> L1_catch
+call risky, 0
+goto L1_end
+label L1_catch:
+EXC_ASSIGN "Exception", -, e
+print(e)
+label L1_end:
+```
+
 
 
 
