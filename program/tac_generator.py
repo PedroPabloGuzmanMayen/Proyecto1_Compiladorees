@@ -414,6 +414,7 @@ class tac_generator(CompiscriptVisitor):
         end_lbl = f"L{ln}_end"
 
         self.quadruple_table.insert_into_table("label", None, None, try_lbl + ":")
+        self.quadruple_table.insert_into_table("ON_EXCEPTION", "->", None, catch_lbl)
 
         old_table = self.symbol_table
         scope_key_try = f"try_{ln}"
