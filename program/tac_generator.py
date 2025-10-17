@@ -202,6 +202,8 @@ class tac_generator(CompiscriptVisitor):
         start_lbl = f"L{ln}_start"
         cond_lbl = f"L{ln}_cond"
         after_lbl = f"L{ln}_after"
+        self.start = cond_lbl
+        self.end = after_lbl
         self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
         if ctx.block():
             old_table = self.symbol_table
@@ -225,6 +227,8 @@ class tac_generator(CompiscriptVisitor):
         body_lbl = f"L{ln}_body"
         update_lbl = f"L{ln}_update"
         after_lbl = f"L{ln}_after"
+        self.start = update_lbl
+        self.end = after_lbl
 
         iter_name = None
         iterable_node = None
@@ -314,6 +318,8 @@ class tac_generator(CompiscriptVisitor):
         body_lbl = f"L{ln}_body"
         update_lbl = f"L{ln}_update"
         after_lbl = f"L{ln}_after"
+        self.start = update_lbl
+        self.end = after_lbl
         old_table = self.symbol_table
         scope_key = f"for_{ln}"
         self.symbol_table = old_table.scope_map[scope_key]
@@ -379,7 +385,7 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#breakStatement.
     def visitBreakStatement(self, ctx:CompiscriptParser.BreakStatementContext):
-        return self.visitChildren(ctx)
+        self.quadruple_table.insert_into_table("goto", self.end, None, None)
 
 
     # Visit a parse tree produced by CompiscriptParser#continueStatement.
