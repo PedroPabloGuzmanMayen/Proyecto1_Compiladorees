@@ -6,9 +6,6 @@ from CompiscriptVisitor import CompiscriptVisitor
 from symbolTable import Register, Symbol_table
 import re
 
-
-
-
 class tac_generator(CompiscriptVisitor):
 
     def __init__(self, symbol_table):
@@ -261,59 +258,80 @@ class tac_generator(CompiscriptVisitor):
         end_lbl = f"L{ln}_end"
         switch_node = None
         try:
-            switch_node = ctx.expression(0)
+            if hasattr(ctx, "expression") and len(ctx.expression()) > 0:
+                switch_node = ctx.expression(0)
+            else:
+                switch_node = ctx.getChild(2)
         except Exception:
             switch_node = None
+
         switch_val = None
-        if switch_node is not None:
-            switch_val = self.visit(switch_node)
+        try:
+            if switch_node is not None:
+                switch_val = self.visit(switch_node)
+        except Exception:
+            switch_val = None
+
         cases = []
         default_case = None
-        if getattr(ctx, "switchCase", None):
-            try:
-                sc_list = ctx.switchCase()
-                if not isinstance(sc_list, list):
-                    sc_list = [sc_list]
-                cases = sc_list
-            except Exception:
-                pass
-        if getattr(ctx, "defaultCase", None):
-            try:
-                dc = ctx.defaultCase()
-                if isinstance(dc, list) and len(dc) > 0:
-                    default_case = dc[0]
-                elif dc:
-                    default_case = dc
-            except Exception:
-                pass
-        case_labels = []
+        if hasattr(ctx, "switchCase"):
+            sc_list = ctx.switchCase()
+            if not isinstance(sc_list, list):
+                sc_list = [sc_list]
+            cases = sc_list
+        if hasattr(ctx, "defaultCase"):
+            dc = ctx.defaultCase()
+            if isinstance(dc, list) and len(dc) > 0:
+                default_case = dc[0]
+            elif dc:
+                default_case = dc
+
+        found_cases = []
+        try:
+            txt = ctx.getText()
+            import re
+            m = re.search(r"switch\s*\(\s*([^\)]+)\s*\)", txt, re.DOTALL)
+            switch_txt = m.group(1).strip() if m else None
+            found_cases = re.findall(r"case\s*([^:]+)\s*:", txt, re.DOTALL)
+            if switch_val is None and switch_txt:
+                switch_val = switch_txt
+        except Exception:
+            switch_txt = None
+            found_cases = []
+
+        produced = False
         for i, case_ctx in enumerate(cases):
             case_lbl = f"L{ln}_case{i}"
-            case_labels.append(case_lbl)
-            case_val_node = None
-            if getattr(case_ctx, "expression", None):
-                try:
-                    if len(case_ctx.expression()) >= 1:
-                        case_val_node = case_ctx.expression(0)
-                except Exception:
-                    case_val_node = None
-            if case_val_node is None and getattr(case_ctx, "literalExpr", None):
-                try:
-                    if len(case_ctx.literalExpr()) >= 1:
-                        case_val_node = case_ctx.literalExpr(0)
-                except Exception:
-                    case_val_node = None
-            if case_val_node is None or switch_val is None:
+            case_val = None
+            try:
+                if hasattr(case_ctx, "expression") and len(case_ctx.expression()) > 0:
+                    case_val = self.visit(case_ctx.expression(0))
+            except Exception:
+                case_val = None
+            if case_val is None and i < len(found_cases):
+                case_val = found_cases[i].strip()
+            if case_val is None or switch_val is None:
                 continue
             cmp_temp = self.temporal_generator()
-            case_val = self.visit(case_val_node)
             self.quadruple_table.insert_into_table("==", switch_val, case_val, cmp_temp)
             self.quadruple_table.insert_into_table("if", cmp_temp, "goto", case_lbl)
+            produced = True
+
+        if not produced and found_cases and switch_val is not None:
+            for i, cv in enumerate(found_cases):
+                case_lbl = f"L{ln}_case{i}"
+                cmp_temp = self.temporal_generator()
+                self.quadruple_table.insert_into_table("==", switch_val, cv.strip(), cmp_temp)
+                self.quadruple_table.insert_into_table("if", cmp_temp, "goto", case_lbl)
+            produced = True
+
         if default_case is not None:
             default_lbl = f"L{ln}_default"
             self.quadruple_table.insert_into_table("goto", default_lbl, None, None)
         else:
             self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+
+        case_labels = [f"L{ln}_case{i}" for i in range(max(len(cases), len(found_cases)))]
         for i, case_ctx in enumerate(cases):
             case_lbl = case_labels[i]
             self.quadruple_table.insert_into_table("label", None, None, case_lbl + ":")
@@ -321,11 +339,11 @@ class tac_generator(CompiscriptVisitor):
             scope_key = f"case_{ln}_{i}"
             if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
                 self.symbol_table = old_table.scope_map[scope_key]
-            if getattr(case_ctx, "block", None) and case_ctx.block():
+            if hasattr(case_ctx, "block") and case_ctx.block():
                 self.visit(case_ctx.block())
             else:
                 try:
-                    if getattr(case_ctx, "statement", None):
+                    if hasattr(case_ctx, "statement"):
                         st = case_ctx.statement()
                         if isinstance(st, list):
                             for s in st:
@@ -336,6 +354,7 @@ class tac_generator(CompiscriptVisitor):
                     pass
             self.symbol_table = old_table
             self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+
         if default_case is not None:
             default_lbl = f"L{ln}_default"
             self.quadruple_table.insert_into_table("label", None, None, default_lbl + ":")
@@ -343,11 +362,11 @@ class tac_generator(CompiscriptVisitor):
             scope_key = f"default_{ln}"
             if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
                 self.symbol_table = old_table.scope_map[scope_key]
-            if getattr(default_case, "block", None) and default_case.block():
+            if hasattr(default_case, "block") and default_case.block():
                 self.visit(default_case.block())
             else:
                 try:
-                    if getattr(default_case, "statement", None):
+                    if hasattr(default_case, "statement"):
                         st = default_case.statement()
                         if isinstance(st, list):
                             for s in st:
@@ -358,14 +377,10 @@ class tac_generator(CompiscriptVisitor):
                     pass
             self.symbol_table = old_table
             self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+
         self.quadruple_table.insert_into_table("label", None, None, end_lbl + ":")
         self.reset_temporal_counter()
         return None
-
-
-    # Visit a parse tree produced by CompiscriptParser#switchCase.
-    def visitSwitchCase(self, ctx:CompiscriptParser.SwitchCaseContext):
-        return self.visitChildren(ctx)
 
 
     # Visit a parse tree produced by CompiscriptParser#defaultCase.

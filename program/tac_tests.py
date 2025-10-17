@@ -17,11 +17,10 @@ def run_code_gen(code_snippet: str):
     intermediate_code_generator.visit(tree)
     intermediate_code_generator.quadruple_table.write_tac("code.txt")
 
-
 code = """ let hola:integer = (1+3)-(4*(5/2));
 
 let adios: boolean = 1 < 2;
-let hello: boolean = 1 == 2 || 2==1 || 1<3
+let hello: boolean = 1 == 2 || 2==1 || 1<3;
 
 if (1<2){
     let hoo: integer = 1;
