@@ -32,7 +32,16 @@ class tac_generator(CompiscriptVisitor):
 
         
     def free_temporal(self, id):
-        pass
+        if not id:
+            return
+        if id in self.in_use_temporals:
+            try:
+                self.in_use_temporals.remove(id)
+            except ValueError:
+                pass
+        if id not in self.available_temporals:
+            self.available_temporals.append(id)
+
     def reset_temporal_counter(self):
         self.temporal_counter = 0
 
@@ -109,9 +118,8 @@ class tac_generator(CompiscriptVisitor):
                 if idx_part is None:
                     idx_part = m.group(2).strip() if m else "0"
                 value = self.visit(ctx.expression(1))
-                target = f"{arr_name}[{idx_part}]"
-                self.quadruple_table.insert_into_table("=", value, None, target)
-                return target
+                self.quadruple_table.insert_into_table("[]=", value, idx_part, arr_name)
+                return f"{arr_name}[{idx_part}]"
             left = self.visit(left_node)
             value = self.visit(ctx.expression(1))
             self.quadruple_table.insert_into_table("=", value, None, left)
@@ -124,8 +132,7 @@ class tac_generator(CompiscriptVisitor):
             self.quadruple_table.insert_into_table("=", value, None, target)
             return target
         return None
-
-
+    
     # Visit a parse tree produced by CompiscriptParser#expressionStatement.
     def visitExpressionStatement(self, ctx:CompiscriptParser.ExpressionStatementContext):
         return self.visitChildren(ctx)
@@ -639,13 +646,44 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#AssignExpr.
     def visitAssignExpr(self, ctx:CompiscriptParser.AssignExprContext):
-
         if ctx.lhs and ctx.assignmentExpr():
-            left = self.visit(ctx.leftHandSide())   
-            right = self.visit(ctx.assignmentExpr())
-            self.quadruple_table.add("=", right, None, left)
-            return left
-        # ExprNoAssign (condicional)
+            rhs = self.visit(ctx.assignmentExpr())
+            lhs_ctx = ctx.leftHandSide()
+            base = None
+            if hasattr(lhs_ctx, "primaryAtom") and lhs_ctx.primaryAtom():
+                base = self.visit(lhs_ctx.primaryAtom())
+            suffixes = list(lhs_ctx.suffixOp()) if hasattr(lhs_ctx, "suffixOp") and lhs_ctx.suffixOp() else []
+            if suffixes:
+                for i, suffix in enumerate(suffixes):
+                    rule_name = type(suffix).__name__.replace("Context", "")
+                    if rule_name == "CallExpr":
+                        args = []
+                        if suffix.arguments():
+                            for expr in suffix.arguments().expression():
+                                val = self.visit(expr)
+                                args.append(val)
+                                self.quadruple_table.insert_into_table("param", val, None, None)
+                        temp_ret = self.temporal_generator()
+                        self.quadruple_table.insert_into_table("call", base, len(args), temp_ret)
+                        base = temp_ret
+                    elif rule_name == "IndexExpr":
+                        idx_val = self.visit(suffix.expression())
+                        if i == len(suffixes) - 1:
+                            self.quadruple_table.insert_into_table("[]=", rhs, idx_val, base)
+                            return base
+                        else:
+                            tmp = self.temporal_generator()
+                            self.quadruple_table.insert_into_table("[]", base, idx_val, tmp)
+                            base = tmp
+                    elif rule_name == "PropertyAccessExpr":
+                        prop_name = suffix.Identifier().getText()
+                        base = f"{base}.{prop_name}"
+                self.quadruple_table.insert_into_table("=", rhs, None, base)
+                return base
+            else:
+                left = self.visit(lhs_ctx)
+                self.quadruple_table.add("=", rhs, None, left)
+                return left
         return self.visitChildren(ctx)
 
 
