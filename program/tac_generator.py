@@ -11,7 +11,6 @@ class tac_generator(CompiscriptVisitor):
     def __init__(self, symbol_table):
         self.symbol_table = symbol_table
         self.quadruple_table = Quadruple()
-        self.offset = 0
         self.temporal_counter = 0
         self.available_temporals = []
         self.in_use_temporals = []
@@ -134,6 +133,8 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#printStatement.
     def visitPrintStatement(self, ctx:CompiscriptParser.PrintStatementContext):
+        value = self.visit(ctx.expression())
+        self.quadruple_table.insert_into_table("PRINT", None, None, value)
         return self.visitChildren(ctx)
 
 
