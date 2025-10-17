@@ -15,6 +15,7 @@ class tac_generator(CompiscriptVisitor):
         self.temporal_counter = 0
         self.available_temporals = []
         self.in_use_temporals = []
+        self.old_table = []
 
     def temporal_generator(self):
         self.temporal_counter += 1
@@ -143,7 +144,21 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#whileStatement.
     def visitWhileStatement(self, ctx:CompiscriptParser.WhileStatementContext):
-        return self.visitChildren(ctx)
+        initial_tag = "L" + str(self.get_line_number(ctx))
+        next_tag = "L" + str(1+int(self.get_line_number(ctx)))
+        final_tag = "L" + str(2+int(self.get_line_number(ctx)))
+        self.quadruple_table.insert_into_table("label", None, None, initial_tag + ":")
+        value = self.visit(ctx.expression())
+        self.quadruple_table.insert_into_table("if", value, "goto", next_tag)
+        self.quadruple_table.insert_into_table("goto", final_tag, None, None)
+        if ctx.block():
+            self.quadruple_table.insert_into_table("label", None, None, next_tag + ":")
+            old_table = self.symbol_table
+            self.symbol_table = old_table.scope_map["while_" + str(self.get_line_number(ctx))]
+            self.visit(ctx.block())
+            self.quadruple_table.insert_into_table("goto", initial_tag, None, None)
+            self.quadruple_table.insert_into_table("label", None, None, final_tag + ":")
+            self.symbol_table = old_table
 
 
     # Visit a parse tree produced by CompiscriptParser#doWhileStatement.
