@@ -300,7 +300,6 @@ class semantic_analyzer(CompiscriptVisitor):
 
 
             
-
     def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
         """Verifica la condición del if y visita los bloques (if y optional else)."""
         cond_ctx = ctx.expression()
@@ -314,9 +313,13 @@ class semantic_analyzer(CompiscriptVisitor):
         if getattr(ctx, "block", None):
             # ctx.block(0) -> bloque del if, ctx.block(1) -> else (si existe)
             if ctx.block(0):
+                self.enter_scope(f"if_{self.get_line_number(ctx)}")
                 self.visit(ctx.block(0))
+                self.exit_scope()
             if len(ctx.block()) > 1 and ctx.block(1):
+                self.enter_scope(f"else_{self.get_line_number(ctx)}")
                 self.visit(ctx.block(1))
+                self.exit_scope()
         return None
 
     def visitTryCatchStatement(self, ctx:CompiscriptParser.TryCatchStatementContext):
