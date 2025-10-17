@@ -7,6 +7,11 @@ import sys
 import threading
 import shutil
 from pathlib import Path
+from antlr4 import InputStream, CommonTokenStream
+from CompiscriptLexer import CompiscriptLexer
+from CompiscriptParser import CompiscriptParser
+from semantic_analizer import semantic_analyzer
+from tac_generator import tac_generator
 
 class PythonIDE:
     def __init__(self, root):
@@ -327,6 +332,7 @@ class PythonIDE:
         file_path = filedialog.askopenfilename(
             title="Abrir archivo",
             filetypes=[
+                ("Archivos Compiscript", "*.cps"),
                 ("Archivos Python", "*.py"),
                 ("Archivos de texto", "*.txt"),
                 ("Todos los archivos", "*.*")
@@ -427,46 +433,71 @@ class PythonIDE:
 
     # ---------------- Running code ----------------
     def run_current_python_with_cps(self):
-        python_exe = shutil.which('python3') or shutil.which('python')
-        if not python_exe:
-            messagebox.showerror("Error", "No se encontró python3 en PATH.")
-            return
+        """Ejecuta código Compiscript (.cps) directamente desde el editor."""
         if not self.current_file:
-            messagebox.showwarning("Sin archivo", "Abre o guarda un .py antes de ejecutar.")
+            messagebox.showwarning("Sin archivo", "Abre o guarda un archivo antes de ejecutar.")
             return
-        if not self.current_file.lower().endswith('.py'):
-            messagebox.showwarning("Archivo no Python", "El archivo activo no es .py")
+
+        if not self.current_file.lower().endswith('.cps'):
+            messagebox.showwarning("Archivo no Compiscript", "El archivo activo no es .cps")
             return
+
+        # Guardar antes de ejecutar
         if not self.file_saved:
             self.save_file()
             if not self.file_saved:
                 return
-        script_dir = os.path.dirname(self.current_file) or os.getcwd()
-        cps_arg = "program.cps"
-        if not os.path.exists(os.path.join(script_dir, cps_arg)):
-            alt = os.path.join("..", "program.cps")
-            if os.path.exists(os.path.join(script_dir, alt)):
-                cps_arg = alt
-        cmd = [python_exe, os.path.basename(self.current_file), cps_arg]
+
+        # Leer el contenido actual del editor
+        code_snippet = self.text_editor.get(1.0, tk.END + "-1c")
+
+        # Ejecutar en un hilo para no congelar la interfaz
         def target():
+            self.run_button.config(state='disabled')
             try:
-                self.run_button.config(state='disabled')
-                self.append_console("\n=== Ejecutando localmente ===\n")
-                proc = subprocess.Popen(cmd, cwd=script_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                self.run_process = proc
-                for line in iter(proc.stdout.readline, ''):
-                    if not line:
-                        break
-                    self.append_console(line)
-                proc.wait()
-                self.append_console(f"\n=== Proceso finalizado (exit {proc.returncode}) ===\n")
-            except Exception as e:
-                self.append_console(f"\nError al ejecutar: {e}\n")
+                self.run_cps_code(code_snippet)
             finally:
                 self.run_button.config(state='normal')
-                self.run_process = None
-    
+
         threading.Thread(target=target, daemon=True).start()
+
+    def run_cps_code(self, code_snippet: str):
+        """Ejecuta código Compiscript y muestra el TAC resultante."""
+        try:
+            # Limpiar consola
+            self.output_console.configure(state='normal')
+            self.output_console.delete(1.0, tk.END)
+            self.output_console.configure(state='disabled')
+
+            self.append_console("=== Generando código intermedio (TAC) ===\n")
+
+            input_stream = InputStream(code_snippet)
+            lexer = CompiscriptLexer(input_stream)
+            stream = CommonTokenStream(lexer)
+            parser = CompiscriptParser(stream)
+            tree = parser.program()
+
+            analyzer = semantic_analyzer()
+            analyzer.visit(tree)
+
+            intermediate_code_generator = tac_generator(analyzer.global_table)
+            intermediate_code_generator.visit(tree)
+            intermediate_code_generator.quadruple_table.write_tac("code.txt")
+
+            # Mostrar el contenido de code.txt en la consola
+            if os.path.exists("code.txt"):
+                with open("code.txt", "r", encoding="utf-8") as f:
+                    output = f.read()
+                self.append_console("\n=== Contenido de code.txt ===\n")
+                self.append_console(output)
+                self.append_console("\n=== Fin de la ejecución ===\n")
+            else:
+                self.append_console("Error: no se generó code.txt\n")
+
+        except Exception as e:
+            self.append_console(f"\nError al ejecutar código Compiscript:\n{e}\n")
+
+
 
     def append_console(self, text):
         """Append text to the output_console in a thread-safe manner."""
