@@ -85,23 +85,41 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#assignment.
     def visitAssignment(self, ctx:CompiscriptParser.AssignmentContext):
-        # Caso simple: Identifier '=' expression ';'
         if ctx.Identifier() and len(ctx.expression()) == 1:
             name = ctx.Identifier().getText()
             value = self.visit(ctx.expression(0))
             self.quadruple_table.insert_into_table("=", value, None, name)
             return name
-
-        # Caso: expression '.' Identifier '=' expression ';'
-        elif len(ctx.expression()) == 2:
+        if len(ctx.expression()) == 2 and not ctx.Identifier():
+            left_node = ctx.expression(0)
+            if left_node.__class__.__name__ == "IndexExprContext":
+                left_txt = left_node.getText()
+                import re
+                m = re.match(r"(.+?)\s*\[\s*(.+)\s*\]$", left_txt)
+                arr_name = m.group(1) if m else left_txt
+                idx_part = None
+                try:
+                    if hasattr(left_node, "expression") and len(left_node.expression()) > 0:
+                        idx_part = self.visit(left_node.expression(0))
+                except Exception:
+                    idx_part = None
+                if idx_part is None:
+                    idx_part = m.group(2).strip() if m else "0"
+                value = self.visit(ctx.expression(1))
+                target = f"{arr_name}[{idx_part}]"
+                self.quadruple_table.insert_into_table("=", value, None, target)
+                return target
+            left = self.visit(left_node)
+            value = self.visit(ctx.expression(1))
+            self.quadruple_table.insert_into_table("=", value, None, left)
+            return left
+        if len(ctx.expression()) == 2 and ctx.Identifier():
             obj = self.visit(ctx.expression(0))
             prop = ctx.Identifier().getText()
             value = self.visit(ctx.expression(1))
             target = f"{obj}.{prop}"
             self.quadruple_table.insert_into_table("=", value, None, target)
             return target
-
-        # fallback
         return None
 
 
@@ -246,10 +264,75 @@ class tac_generator(CompiscriptVisitor):
         self.reset_temporal_counter()
         return None
 
-        # Visit a parse tree produced by CompiscriptParser#foreachStatement.
-    def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
-        return self.visitChildren(ctx)
+     # Visit a parse tree produced by CompiscriptParser#forStatement.
+    def visitForStatement(self, ctx: CompiscriptParser.ForStatementContext):
+        ln = self.get_line_number(ctx)
+        start_lbl = f"L{ln}_start"
+        body_lbl = f"L{ln}_body"
+        update_lbl = f"L{ln}_update"
+        after_lbl = f"L{ln}_after"
+        old_table = self.symbol_table
+        scope_key = f"for_{ln}"
+        self.symbol_table = old_table.scope_map[scope_key]
 
+        init_done = False
+        if hasattr(ctx, "variableDeclaration") and ctx.variableDeclaration():
+            # Caso: for (let i = 0; ...)
+            vdecl = ctx.variableDeclaration()
+            self.visit(vdecl)
+            init_done = True
+        elif hasattr(ctx, "expressionList") and ctx.expressionList():
+            # Caso: for (i = 0; ...)
+            expr_list = ctx.expressionList(0)
+            self.visit(expr_list)
+            init_done = True
+
+
+        cond_node = None
+        post_node = None
+        num_exprs = 0
+        if hasattr(ctx, "expression"):
+            try:
+                num_exprs = len(ctx.expression())
+                if num_exprs == 3:
+                    cond_node = ctx.expression(1)
+                    post_node = ctx.expression(2)
+                elif num_exprs == 2:
+                    cond_node = ctx.expression(0)
+                    post_node = ctx.expression(1)
+                elif num_exprs == 1:
+                    cond_node = ctx.expression(0)
+            except Exception:
+                pass
+
+        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
+
+        # Evaluar condición
+        if cond_node is not None:
+            cond_val = self.visit(cond_node)
+            self.quadruple_table.insert_into_table("if", cond_val, "goto", body_lbl)
+            self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
+        else:
+            # Sin condición → loop infinito
+            self.quadruple_table.insert_into_table("goto", body_lbl, None, None)
+
+        self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
+
+
+        if getattr(ctx, "block", None) and ctx.block():
+            self.visit(ctx.block())
+
+
+        self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
+        if post_node is not None:
+            self.visit(post_node)
+
+
+        self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
+        self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
+        self.symbol_table = old_table
+        self.reset_temporal_counter()
+        return None
 
     # Visit a parse tree produced by CompiscriptParser#breakStatement.
     def visitBreakStatement(self, ctx:CompiscriptParser.BreakStatementContext):
@@ -665,7 +748,26 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#IndexExpr.
     def visitIndexExpr(self, ctx:CompiscriptParser.IndexExprContext):
-        return self.visitChildren(ctx)
+        txt = ctx.getText()
+        import re
+        m = re.match(r"(.+?)\s*\[\s*(.+)\s*\]$", txt)
+        arr_name = m.group(1) if m else txt
+        idx_val = None
+        try:
+            if hasattr(ctx, "expression") and len(ctx.expression()) > 0:
+                idx_val = self.visit(ctx.expression(0))
+        except Exception:
+            idx_val = None
+        if idx_val is None:
+            try:
+                inner = m.group(2).strip() if m else ""
+                idx_val = inner
+            except Exception:
+                idx_val = "0"
+        temp = self.temporal_generator()
+        self.quadruple_table.insert_into_table("[]", arr_name, idx_val, temp)
+        return temp
+
 
 
     # Visit a parse tree produced by CompiscriptParser#PropertyAccessExpr.

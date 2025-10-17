@@ -24,16 +24,13 @@ let hello: boolean = 1 == 2 || 2==1 || 1<3;
 
 if (1<2){
     let hoo: integer = 1;
-
 }
-
 else {
     let mario: integer = 2;
 }
 
 let hi: integer = 1;
 adios = true;
-
 
 let x: integer = 2;
 switch (x) {
@@ -47,7 +44,20 @@ for (i = 0; i < 3; i = i + 1) {
     let x: integer = i;
 }
 
+let arr: integer[] = [1, 2, 3];
+let v: integer = arr[1];
+arr[0] = 10;
 
+let sum: integer = 0;
+foreach (elem in arr) {
+    sum = sum + elem;
+}
+
+let j: integer = 0;
+do {
+    j = j + 1;
+} while (j < 2);
 """
 
 run_code_gen(code)
+
