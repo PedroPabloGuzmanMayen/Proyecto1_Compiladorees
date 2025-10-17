@@ -116,29 +116,39 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#ifStatement.
-    def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
-        value = self.visit(ctx.expression())
-        tag = "L" + str(self.get_line_number(ctx))
-        next = "L" + str(1+int(self.get_line_number(ctx))) #Aquí será la siguiente línea que vamos a dar
+    def visitIfStatement(self, ctx: CompiscriptParser.IfStatementContext):
+        # Generar etiquetas únicas
+        line = int(self.get_line_number(ctx))
+        Ltrue = f"L{line}"
+        Lfalse = f"L{line + 1}"
+        Lend = f"L{line + 2}"
 
-        self.quadruple_table.insert_into_table("if", value, "goto", tag)
-        self.quadruple_table.insert_into_table("goto", next, None, None)
+        condition = self.visit(ctx.expression())
 
-        self.quadruple_table.insert_into_table("label", None, None, tag + ":")
+        self.quadruple_table.insert_into_table("if", condition, "goto", Ltrue)
+        self.quadruple_table.insert_into_table("goto", Lfalse, None, None)
 
-        if getattr(ctx, "block", None):
-            # ctx.block(0) -> bloque del if, ctx.block(1) -> else (si existe)
-            if ctx.block(0):
-                old_table = self.symbol_table
-                self.symbol_table = old_table.scope_map["if_" + str(self.get_line_number(ctx))]
-                self.visit(ctx.block(0))
-                self.symbol_table = old_table
-                self.quadruple_table.insert_into_table("label", None, None, next + ":")
-            if len(ctx.block()) > 1 and ctx.block(1):
-                old_table = self.symbol_table
-                self.symbol_table = old_table.scope_map["else_" + str(self.get_line_number(ctx))]
-                self.visit(ctx.block(1))
-                self.symbol_table = old_table
+        self.quadruple_table.insert_into_table("label", None, None, Ltrue)
+        old_table = self.symbol_table
+        self.symbol_table = old_table.scope_map.get(f"if_{line}", old_table)
+        self.visit(ctx.block(0))
+        self.symbol_table = old_table
+
+        if len(ctx.block()) > 1:
+            self.quadruple_table.insert_into_table("goto", Lend, None, None)
+
+        self.quadruple_table.insert_into_table("label", None, None, Lfalse)
+        if len(ctx.block()) > 1:
+            self.symbol_table = old_table.scope_map.get(f"else_{line}", old_table)
+            self.visit(ctx.block(1))
+            self.symbol_table = old_table
+
+        # --- Fin del if ---
+        if len(ctx.block()) > 1:
+            self.quadruple_table.insert_into_table("label", None, None, Lend)
+
+        return None
+
         
 
 
