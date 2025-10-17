@@ -600,10 +600,45 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#leftHandSide.
-    def visitLeftHandSide(self, ctx:CompiscriptParser.LeftHandSideContext):
-        if len(ctx.suffixOp()) == 0:
-            return self.visit(ctx.primaryAtom())
-        return self.visit(ctx.primaryAtom())  # placeholder para llamadas/indexaciones
+    def visitLeftHandSide(self, ctx: CompiscriptParser.LeftHandSideContext):
+        # Base: puede ser un identificador o 'new' u otra primitiva
+        base = self.visit(ctx.primaryAtom())
+
+        # Si no tiene sufijos (no es llamada ni acceso), devolvemos el identificador base
+        if not ctx.suffixOp():
+            return base
+
+        # Iterar sobre todos los sufijos (puede haber llamados encadenados o propiedades)
+        for suffix in ctx.suffixOp():
+            rule_name = type(suffix).__name__.replace("Context", "")
+
+            # --- LLAMADA A FUNCIÓN O MÉTODO ---
+            if rule_name == "CallExpr":
+                args = []
+                if suffix.arguments():
+                    for expr in suffix.arguments().expression():
+                        val = self.visit(expr)
+                        args.append(val)
+                        self.quadruple_table.insert_into_table("param", val, None, None)
+
+                n_args = len(args)
+                temp_ret = self.temporal_generator()
+                self.quadruple_table.insert_into_table("call", base, n_args, temp_ret)
+                base = temp_ret  # el resultado ahora es el temporal de retorno
+
+            # --- ACCESO POR ÍNDICE (arrays) ---
+            elif rule_name == "IndexExpr":
+                index_val = self.visit(suffix.expression())
+                temp = self.temporal_generator()
+                self.quadruple_table.insert_into_table("[]", base, index_val, temp)
+                base = temp
+
+            # --- ACCESO A PROPIEDAD ---
+            elif rule_name == "PropertyAccessExpr":
+                prop_name = suffix.Identifier().getText()
+                base = f"{base}.{prop_name}"
+
+        return base
 
 
     # Visit a parse tree produced by CompiscriptParser#IdentifierExpr.
