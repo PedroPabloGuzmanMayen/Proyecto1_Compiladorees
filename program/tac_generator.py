@@ -266,7 +266,8 @@ class tac_generator(CompiscriptVisitor):
         if ctx.expression():
             value = self.visit(ctx.expression())
             self.quadruple_table.insert_into_table("RETURN", value, None, None)
-        self.quadruple_table.insert_into_table("endfunc", None, None, None)
+        else:
+            self.quadruple_table.insert_into_table("RETURN", None, None, None)
 
 
     # Visit a parse tree produced by CompiscriptParser#tryCatchStatement.
@@ -432,6 +433,7 @@ class tac_generator(CompiscriptVisitor):
             self.visit(ctx.block())
         self.symbol_table = old_table
         self.reset_temporal_counter()
+        self.quadruple_table.insert_into_table("endfunc", None, None, None)
         return func_name
 
 
