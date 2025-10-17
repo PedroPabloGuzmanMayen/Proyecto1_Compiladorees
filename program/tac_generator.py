@@ -26,6 +26,9 @@ class tac_generator(CompiscriptVisitor):
     def memory_allocator(self, type, dimension, size):
         pass
 
+    def get_line_number(self, ctx):
+        return ctx.start.line if ctx.start else 0
+
         
     def free_temporal(self, id):
         pass
@@ -116,8 +119,29 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#ifStatement.
     def visitIfStatement(self, ctx:CompiscriptParser.IfStatementContext):
+        value = self.visit(ctx.expression())
+        tag = "L" + str(self.get_line_number(ctx))
+        next = "L" + str(1+int(self.get_line_number(ctx))) #Aquí será la siguiente línea que vamos a dar
 
-        return self.visitChildren(ctx)
+        self.quadruple_table.insert_into_table("if", value, "goto", tag)
+        self.quadruple_table.insert_into_table("goto", next, None, None)
+
+        self.quadruple_table.insert_into_table(tag + ":", None, None, None)
+
+        if getattr(ctx, "block", None):
+            # ctx.block(0) -> bloque del if, ctx.block(1) -> else (si existe)
+            if ctx.block(0):
+                old_table = self.symbol_table
+                self.symbol_table = old_table.scope_map["if_" + str(self.get_line_number(ctx))]
+                self.visit(ctx.block(0))
+                self.symbol_table = old_table
+                self.quadruple_table.insert_into_table(next + ":", None, None, None)
+            if len(ctx.block()) > 1 and ctx.block(1):
+                old_table = self.symbol_table
+                self.symbol_table = old_table.scope_map["else_" + str(self.get_line_number(ctx))]
+                self.visit(ctx.block(1))
+                self.symbol_table = old_table
+        
 
 
     # Visit a parse tree produced by CompiscriptParser#whileStatement.
