@@ -61,6 +61,11 @@ sum = 0
 t1 = sum + elem
 sum = t1
 j = 0
+L38_start:
 t1 = j + 1
 j = t1
+L38_cond:
 t2 = j < 2
+if t2 goto L38_start
+goto L38_after
+L38_after:

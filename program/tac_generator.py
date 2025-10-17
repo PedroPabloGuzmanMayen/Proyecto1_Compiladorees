@@ -190,9 +190,26 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#doWhileStatement.
-    def visitDoWhileStatement(self, ctx:CompiscriptParser.DoWhileStatementContext):
-        return self.visitChildren(ctx)
-
+    def visitDoWhileStatement(self, ctx: CompiscriptParser.DoWhileStatementContext):
+        ln = self.get_line_number(ctx)
+        start_lbl = f"L{ln}_start"
+        cond_lbl = f"L{ln}_cond"
+        after_lbl = f"L{ln}_after"
+        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
+        if ctx.block():
+            old_table = self.symbol_table
+            self.symbol_table = old_table.scope_map.get(f"doWhile_{ln}", old_table)
+            self.visit(ctx.block())
+            self.symbol_table = old_table
+        self.quadruple_table.insert_into_table("label", None, None, cond_lbl + ":")
+        if ctx.expression():
+            cond_val = self.visit(ctx.expression())
+            self.quadruple_table.insert_into_table("if", cond_val, "goto", start_lbl)
+            self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
+        else:
+            self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
+        self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
+        return None
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
     def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
