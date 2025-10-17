@@ -16,6 +16,10 @@ class tac_generator(CompiscriptVisitor):
         self.available_temporals = []
         self.in_use_temporals = []
         self.old_table = []
+        self.start = ""
+        self.end = ""
+        self.update_line = ""
+        self.current_condition = ""
 
     def temporal_generator(self):
         self.temporal_counter += 1
@@ -142,6 +146,7 @@ class tac_generator(CompiscriptVisitor):
         Lend = f"L{line + 2}"
 
         condition = self.visit(ctx.expression())
+        self.current_condition = condition
 
         self.quadruple_table.insert_into_table("if", condition, "goto", Ltrue)
         self.quadruple_table.insert_into_table("goto", Lfalse, None, None)
@@ -175,6 +180,8 @@ class tac_generator(CompiscriptVisitor):
         initial_tag = "L" + str(self.get_line_number(ctx))
         next_tag = "L" + str(1+int(self.get_line_number(ctx)))
         final_tag = "L" + str(2+int(self.get_line_number(ctx)))
+        self.start = initial_tag
+        self.end = final_tag
         self.quadruple_table.insert_into_table("label", None, None, initial_tag + ":")
         value = self.visit(ctx.expression())
         self.quadruple_table.insert_into_table("if", value, "goto", next_tag)
@@ -377,7 +384,9 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#continueStatement.
     def visitContinueStatement(self, ctx:CompiscriptParser.ContinueStatementContext):
-        return self.visitChildren(ctx)
+
+        self.quadruple_table.insert_into_table("goto", self.start, None, None)
+
 
 
     # Visit a parse tree produced by CompiscriptParser#returnStatement.
