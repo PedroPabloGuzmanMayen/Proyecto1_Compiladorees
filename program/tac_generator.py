@@ -621,13 +621,51 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#classDeclaration.
-    def visitClassDeclaration(self, ctx:CompiscriptParser.ClassDeclarationContext):
-        return self.visitChildren(ctx)
+    def visitClassDeclaration(self, ctx: CompiscriptParser.ClassDeclarationContext):
+
+        class_name = ctx.Identifier(0).getText()
+        parent_class = ctx.Identifier(1).getText() if len(ctx.Identifier()) > 1 else None
+
+        if parent_class:
+            self.quadruple_table.insert_into_table("CLASS", class_name, "inherits", parent_class)
+            self.quadruple_table.insert_into_table("INHERIT", parent_class, None, None)
+        else:
+            self.quadruple_table.insert_into_table("CLASS", class_name, None, None)
+
+        old_table = self.symbol_table
+        scope_key = f"class_{class_name}"
+        if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
+            self.symbol_table = old_table.scope_map[scope_key]
+
+
+        if ctx.classMember():
+            for member in ctx.classMember():
+                self.visit(member)
+
+    
+        self.symbol_table = old_table
+
+        self.quadruple_table.insert_into_table("ENDCLASS", None, None, class_name)
+        self.reset_temporal_counter()
+        return class_name
 
 
     # Visit a parse tree produced by CompiscriptParser#classMember.
     def visitClassMember(self, ctx:CompiscriptParser.ClassMemberContext):
-        return self.visitChildren(ctx)
+        child = ctx.getChild(0)
+        rule_name = type(child).__name__.replace("Context", "")
+
+        if rule_name == "FunctionDeclaration":
+            return self.visitFunctionDeclaration(child)
+        elif rule_name == "VariableDeclaration":
+            var_name = child.Identifier().getText()
+            self.quadruple_table.insert_into_table("FIELD", None, None, var_name)
+            return var_name
+        elif rule_name == "ConstantDeclaration":
+            const_name = child.Identifier().getText()
+            self.quadruple_table.insert_into_table("FIELD_CONST", None, None, const_name)
+            return const_name
+        return None
 
 
     # Visit a parse tree produced by CompiscriptParser#expression.
@@ -859,7 +897,7 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#ThisExpr.
     def visitThisExpr(self, ctx:CompiscriptParser.ThisExprContext):
-        return self.visitChildren(ctx)
+        return "this"
 
 
     # Visit a parse tree produced by CompiscriptParser#CallExpr.
