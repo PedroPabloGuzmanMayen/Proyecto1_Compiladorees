@@ -162,7 +162,7 @@ Código:
 let h: integer[] = [1, "x"];
 
 ⚠️  Análisis completado con errores:
-  1. ERROR L1: Arreglo heterogéneo: {'string', 'integer'}
+  1. ERROR L1: Arreglo heterogéneo: {'integer', 'string'}
 
 ----------------------------------------
 TABLA DE SÍMBOLOS
@@ -364,7 +364,7 @@ Resultado de la prueba: PASÓ (se esperaba ERROR)
 PRUEBA: If con condición booleana
 ======================================================================
 Código:
-let p: integer = 1; if (true) { let x: integer = 1; }
+let p: integer = 1; if (true) { let x: integer = 1; } else { let y: integer = 5; } let a: integer = 4;
 
 ✅ Análisis semántico exitoso (sin errores)
 
@@ -379,13 +379,29 @@ Scope: Global
       Clase Padre: None
       Kind: variable
       Línea: 1
-  - x:
+  - a:
       Tipo: integer
       Dimensión: 0
       Mutable: True
       Clase Padre: None
       Kind: variable
       Línea: 1
+  Scope: if_1
+    - x:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
+  Scope: else_1
+    - y:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
 
 Resultado de la prueba: PASÓ (se esperaba OK)
 
@@ -402,13 +418,15 @@ if (1) { let x: integer = 1; }
 TABLA DE SÍMBOLOS
 ----------------------------------------
 Scope: Global
-  - x:
-      Tipo: integer
-      Dimensión: 0
-      Mutable: True
-      Clase Padre: None
-      Kind: variable
-      Línea: 1
+  (sin símbolos)
+  Scope: if_1
+    - x:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
 
 Resultado de la prueba: PASÓ (se esperaba ERROR)
 
@@ -424,13 +442,15 @@ while (true) { let a: integer = 1; }
 TABLA DE SÍMBOLOS
 ----------------------------------------
 Scope: Global
-  - a:
-      Tipo: integer
-      Dimensión: 0
-      Mutable: True
-      Clase Padre: None
-      Kind: variable
-      Línea: 1
+  (sin símbolos)
+  Scope: while_1
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
 
 Resultado de la prueba: PASÓ (se esperaba OK)
 
@@ -447,13 +467,15 @@ while (1) { let a: integer = 1; }
 TABLA DE SÍMBOLOS
 ----------------------------------------
 Scope: Global
-  - a:
-      Tipo: integer
-      Dimensión: 0
-      Mutable: True
-      Clase Padre: None
-      Kind: variable
-      Línea: 1
+  (sin símbolos)
+  Scope: while_1
+    - a:
+        Tipo: integer
+        Dimensión: 0
+        Mutable: True
+        Clase Padre: None
+        Kind: variable
+        Línea: 1
 
 Resultado de la prueba: PASÓ (se esperaba ERROR)
 

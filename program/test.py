@@ -92,7 +92,7 @@ def main():
             }""", False),
 
         # Control de flujo
-        ("If con condición booleana", "let p: integer = 1; if (true) { let x: integer = 1; }", True),
+        ("If con condición booleana", "let p: integer = 1; if (true) { let x: integer = 1; } else { let y: integer = 5; } let a: integer = 4;", True),
         ("If con condición no booleana (debe fallar)", "if (1) { let x: integer = 1; }", False),
         ("While con condición booleana", "while (true) { let a: integer = 1; }", True),
         ("While con condición no booleana (debe fallar)", "while (1) { let a: integer = 1; }", False),

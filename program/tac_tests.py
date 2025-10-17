@@ -15,13 +15,25 @@ def run_code_gen(code_snippet: str):
     analyzer.visit(tree)
     intermediate_code_generator = tac_generator(analyzer.global_table)
     intermediate_code_generator.visit(tree)
-    intermediate_code_generator.quadruple_table.write_to_console()
+    intermediate_code_generator.quadruple_table.write_tac("code.txt")
 
 
 code = """ let hola:integer = (1+3)-(4*(5/2));
 
 let adios: boolean = 1 < 2;
 let hello: boolean = 1 == 2 || 2==1 || 1<3
+
+if (1<2){
+    let hoo: integer = 1;
+
+}
+
+else {
+    let mario: integer = 2;
+}
+
+let hi: integer = 1;
+adios = true;
 
 
 

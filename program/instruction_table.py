@@ -13,3 +13,69 @@ class Quadruple():
                 f.write(f"{i:03d}: ({op}, {arg1}, {arg2}, {res})\n")
         print(f"[✅] Código intermedio guardado en '{filename}'")
 
+    def write_tac(self, filename="intermediate_code.txt"):
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("=== CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===\n\n")
+
+            for i, (op, arg1, arg2, res) in enumerate(self.quadruples):
+                line = ""
+
+                # --- Etiquetas ---
+                if op and op.endswith(":"):
+                    line = f"{op}"
+                
+                # --- Asignación simple ---
+                elif op == "=":
+                    if arg2 is None:
+                        line = f"{res} = {arg1}"
+                    else:
+                        line = f"{res} = {arg1} {op} {arg2}"
+
+                # --- Operaciones aritméticas o lógicas ---
+                elif op in ["+", "-", "*", "/", ">", "<", ">=", "<=", "==", "!=", "&&", "||"]:
+                    line = f"{res} = {arg1} {op} {arg2}"
+
+                # --- Saltos condicionales ---
+                elif op == "if":
+                    line = f"if {arg1} goto {res}"
+
+                # --- Saltos incondicionales ---
+                elif op == "goto":
+                    if arg1:
+                        line = f"goto {arg1}"
+                    elif res:
+                        line = f"goto {res}"
+                    else:
+                        line = "goto"
+
+                # --- Funciones ---
+                elif op == "func":
+                    line = f"func {arg1}, n_params={arg2}, ret_type={res}"
+                elif op == "endfunc":
+                    line = "endfunc"
+                elif op == "param":
+                    line = f"param {arg1}"
+                elif op == "call":
+                    if res:
+                        line = f"call {arg1}, {arg2}, {res}"
+                    else:
+                        line = f"call {arg1}, {arg2}"
+                elif op == "return":
+                    line = f"return {arg1 if arg1 else ''}"
+
+                # --- Clases ---
+                elif op == "class":
+                    line = f"class {arg1}"
+                elif op == "endclass":
+                    line = "endclass"
+                elif op == "field":
+                    line = f"field {arg1}"
+
+                # --- Otros casos (para debug o extensión futura) ---
+                else:
+                    line = f"# {op} {arg1 or ''} {arg2 or ''} {res or ''}".strip()
+
+                # --- Escribir línea ---
+                f.write(f"{line}\n")
+
+        print(f"[✅] TAC legible guardado en '{filename}'")

@@ -126,7 +126,7 @@ class tac_generator(CompiscriptVisitor):
         self.quadruple_table.insert_into_table("if", value, "goto", tag)
         self.quadruple_table.insert_into_table("goto", next, None, None)
 
-        self.quadruple_table.insert_into_table(tag + ":", None, None, None)
+        self.quadruple_table.insert_into_table("label", None, None, tag + ":")
 
         if getattr(ctx, "block", None):
             # ctx.block(0) -> bloque del if, ctx.block(1) -> else (si existe)
@@ -135,7 +135,7 @@ class tac_generator(CompiscriptVisitor):
                 self.symbol_table = old_table.scope_map["if_" + str(self.get_line_number(ctx))]
                 self.visit(ctx.block(0))
                 self.symbol_table = old_table
-                self.quadruple_table.insert_into_table(next + ":", None, None, None)
+                self.quadruple_table.insert_into_table("label", None, None, next + ":")
             if len(ctx.block()) > 1 and ctx.block(1):
                 old_table = self.symbol_table
                 self.symbol_table = old_table.scope_map["else_" + str(self.get_line_number(ctx))]
