@@ -129,13 +129,13 @@ class tac_generator(CompiscriptVisitor):
             value = self.visit(ctx.expression(1))
             self.quadruple_table.insert_into_table("=", value, None, left)
             return left
+        
         if len(ctx.expression()) == 2 and ctx.Identifier():
             obj = self.visit(ctx.expression(0))
             prop = ctx.Identifier().getText()
             value = self.visit(ctx.expression(1))
-            target = f"{obj}.{prop}"
-            self.quadruple_table.insert_into_table("=", value, None, target)
-            return target
+            self.quadruple_table.insert_into_table("SET_FIELD", obj, prop, value)
+            return f"{obj}.{prop}"
         return None
     
     # Visit a parse tree produced by CompiscriptParser#expressionStatement.
@@ -867,9 +867,12 @@ class tac_generator(CompiscriptVisitor):
 
                 n_args = len(args)
                 temp_ret = self.temporal_generator()
-                self.quadruple_table.insert_into_table("call", base, n_args, temp_ret)
-                base = temp_ret  # el resultado ahora es el temporal de retorno
-
+                # Si base es un objeto.prop, es método de clase
+                if "." in base:
+                    self.quadruple_table.insert_into_table("CALL_METHOD", base, n_args, temp_ret)
+                else:
+                    self.quadruple_table.insert_into_table("CALL_FUNC", base, n_args, temp_ret)
+                base = temp_ret
             # --- ACCESO POR ÍNDICE (arrays) ---
             elif rule_name == "IndexExpr":
                 index_val = self.visit(suffix.expression())
@@ -880,7 +883,9 @@ class tac_generator(CompiscriptVisitor):
             # --- ACCESO A PROPIEDAD ---
             elif rule_name == "PropertyAccessExpr":
                 prop_name = suffix.Identifier().getText()
-                base = f"{base}.{prop_name}"
+                temp = self.temporal_generator()
+                self.quadruple_table.insert_into_table("GET_FIELD", base, prop_name, temp)
+                base = temp
 
         return base
 
@@ -891,8 +896,24 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#NewExpr.
-    def visitNewExpr(self, ctx:CompiscriptParser.NewExprContext):
-        return self.visitChildren(ctx)
+    def visitNewExpr(self, ctx: CompiscriptParser.NewExprContext):
+        class_name = ctx.Identifier().getText()
+        args = []
+        if ctx.arguments():
+            for expr in ctx.arguments().expression():
+                arg_val = self.visit(expr)
+                args.append(arg_val)
+                self.quadruple_table.insert_into_table("param", arg_val, None, None)
+
+        # Crear un temporal para la instancia
+        temp_obj = self.temporal_generator()
+        self.quadruple_table.insert_into_table("ALLOC_OBJ", class_name, None, temp_obj)
+
+        # Llamar al constructor si existe
+        self.quadruple_table.insert_into_table("CALL_CONSTRUCTOR", class_name, len(args), temp_obj)
+
+        return temp_obj
+
 
 
     # Visit a parse tree produced by CompiscriptParser#ThisExpr.
