@@ -406,8 +406,47 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#tryCatchStatement.
-    def visitTryCatchStatement(self, ctx:CompiscriptParser.TryCatchStatementContext):
-        return self.visitChildren(ctx)
+    def visitTryCatchStatement(self, ctx: CompiscriptParser.TryCatchStatementContext):
+
+        ln = self.get_line_number(ctx)
+        try_lbl = f"L{ln}_try"
+        catch_lbl = f"L{ln}_catch"
+        end_lbl = f"L{ln}_end"
+
+        self.quadruple_table.insert_into_table("label", None, None, try_lbl + ":")
+
+        old_table = self.symbol_table
+        scope_key_try = f"try_{ln}"
+        if hasattr(old_table, "scope_map") and scope_key_try in old_table.scope_map:
+            self.symbol_table = old_table.scope_map[scope_key_try]
+
+        if ctx.block(0):
+            self.visit(ctx.block(0))
+
+
+        self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+
+
+        self.quadruple_table.insert_into_table("label", None, None, catch_lbl + ":")
+
+ 
+        self.symbol_table = old_table
+        scope_key_catch = f"catch_{ln}"
+        if hasattr(old_table, "scope_map") and scope_key_catch in old_table.scope_map:
+            self.symbol_table = old_table.scope_map[scope_key_catch]
+
+  
+        exception_var = ctx.Identifier().getText() if ctx.Identifier() else None
+        if exception_var:
+            self.quadruple_table.insert_into_table("EXC_ASSIGN", '"Exception"', None, exception_var)
+
+
+        if ctx.block(1):
+            self.visit(ctx.block(1))
+
+        self.symbol_table = old_table
+        self.quadruple_table.insert_into_table("label", None, None, end_lbl + ":")
+        return None
 
 
     # Visit a parse tree produced by CompiscriptParser#switchStatement.
