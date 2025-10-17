@@ -177,35 +177,38 @@ class tac_generator(CompiscriptVisitor):
 
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
-    def visitForStatement(self, ctx:CompiscriptParser.ForStatementContext):
+    def visitForStatement(self, ctx: CompiscriptParser.ForStatementContext):
         ln = self.get_line_number(ctx)
         start_lbl = f"L{ln}_start"
         body_lbl = f"L{ln}_body"
         update_lbl = f"L{ln}_update"
         after_lbl = f"L{ln}_after"
+        old_table = self.symbol_table
+        scope_key = f"for_{ln}"
+        self.symbol_table = old_table.scope_map[scope_key]
 
-        if getattr(ctx, "variableDeclaration", None):
-            try:
-                vdecls = ctx.variableDeclaration()
-                if isinstance(vdecls, list):
-                    for v in vdecls:
-                        self.visit(v)
-                else:
-                    self.visit(vdecls)
-            except Exception:
-                pass
+        init_done = False
+        if hasattr(ctx, "variableDeclaration") and ctx.variableDeclaration():
+            # Caso: for (let i = 0; ...)
+            vdecl = ctx.variableDeclaration()
+            self.visit(vdecl)
+            init_done = True
+        elif hasattr(ctx, "expressionList") and ctx.expressionList():
+            # Caso: for (i = 0; ...)
+            expr_list = ctx.expressionList(0)
+            self.visit(expr_list)
+            init_done = True
+
 
         cond_node = None
         post_node = None
         num_exprs = 0
-        if getattr(ctx, "expression", None):
+        if hasattr(ctx, "expression"):
             try:
                 num_exprs = len(ctx.expression())
                 if num_exprs == 3:
-                    init_node = ctx.expression(0)
                     cond_node = ctx.expression(1)
                     post_node = ctx.expression(2)
-                    self.visit(init_node)
                 elif num_exprs == 2:
                     cond_node = ctx.expression(0)
                     post_node = ctx.expression(1)
@@ -216,40 +219,34 @@ class tac_generator(CompiscriptVisitor):
 
         self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
 
+        # Evaluar condición
         if cond_node is not None:
             cond_val = self.visit(cond_node)
             self.quadruple_table.insert_into_table("if", cond_val, "goto", body_lbl)
             self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
         else:
+            # Sin condición → loop infinito
             self.quadruple_table.insert_into_table("goto", body_lbl, None, None)
 
         self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
 
-        old_table = self.symbol_table
-        scope_key = "for_" + str(ln)
-        if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
-            self.symbol_table = old_table.scope_map[scope_key]
 
         if getattr(ctx, "block", None) and ctx.block():
             self.visit(ctx.block())
 
-        self.symbol_table = old_table
 
         self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
         if post_node is not None:
             self.visit(post_node)
 
+
         self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
-
         self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
-
+        self.symbol_table = old_table
         self.reset_temporal_counter()
-
         return None
 
-
-
-    # Visit a parse tree produced by CompiscriptParser#foreachStatement.
+        # Visit a parse tree produced by CompiscriptParser#foreachStatement.
     def visitForeachStatement(self, ctx:CompiscriptParser.ForeachStatementContext):
         return self.visitChildren(ctx)
 
