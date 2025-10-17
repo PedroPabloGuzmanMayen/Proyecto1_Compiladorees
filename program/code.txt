@@ -56,15 +56,28 @@ arr = [1,2,3]
 t1 = arr[1]
 v = t1
 arr[0] = 10
+arr = [1,2,3]
 sum = 0
-t1 = sum + elem
-sum = t1
+t1 = 0
+L34_start
+t2 = t1 < arr.size
+if t2 goto L34_body
+goto L34_after
+L34_body
+elem = arr[t1]
+t3 = sum + elem
+sum = t3
+L34_update
+t4 = t1 + 1
+t1 = t4
+goto L34_start
+L34_after
 j = 0
-L38_start:
+L39_start:
 t1 = j + 1
 j = t1
-L38_cond:
+L39_cond:
 t2 = j < 2
-if t2 goto L38_start
-goto L38_after
-L38_after:
+if t2 goto L39_start
+goto L39_after
+L39_after:

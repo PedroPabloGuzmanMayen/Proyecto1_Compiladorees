@@ -19,13 +19,37 @@ class tac_generator(CompiscriptVisitor):
         self.end = ""
         self.update_line = ""
         self.current_condition = ""
+        self.offsets = {}
 
     def temporal_generator(self):
         self.temporal_counter += 1
         return f"t{self.temporal_counter}"
     
-    def memory_allocator(self, type, dimension, size):
-        pass
+    def memory_allocator(self, typ, dimension=None, size=None):
+        scope_key = getattr(self.symbol_table, "scope_name", None) or getattr(self.symbol_table, "name", None) or f"scope_{id(self.symbol_table)}"
+        if scope_key not in self.offsets:
+            self.offsets[scope_key] = 0
+        base_offset = self.offsets[scope_key]
+        t = typ.lower() if isinstance(typ, str) else None
+        if t in ("integer", "int"):
+            bytes_per = 4
+        elif t in ("float", "double"):
+            bytes_per = 8
+        elif t in ("boolean", "bool"):
+            bytes_per = 1
+        elif t in ("string", "char", "char*"):
+            if isinstance(size, int) and size > 0:
+                bytes_per = size
+            else:
+                bytes_per = 8
+        else:
+            bytes_per = 8
+        count = 1
+        if isinstance(dimension, int) and dimension > 0:
+            count = dimension
+        total_bytes = bytes_per * count
+        self.offsets[scope_key] += total_bytes
+        return base_offset
 
     def get_line_number(self, ctx):
         return ctx.start.line if ctx.start else 0
@@ -51,6 +75,20 @@ class tac_generator(CompiscriptVisitor):
             self.visit(statement)
         return None
 
+    def ensure_scope_allocated(self, scope_key, st):
+        if scope_key not in self.offsets:
+            self.offsets[scope_key] = 0
+        if not hasattr(st, "elements"):
+            return
+        for name, elem in st.elements.items():
+            if getattr(elem, "offset", None) is None:
+                off = self.memory_allocator(getattr(elem, "type", None), getattr(elem, "dim", None), getattr(elem, "size", None))
+                setattr(elem, "offset", off)
+                try:
+                    elem.update_memory_address(off)
+                except Exception:
+                    pass
+
 
     # Visit a parse tree produced by CompiscriptParser#statement.
     def visitStatement(self, ctx:CompiscriptParser.StatementContext):
@@ -72,6 +110,9 @@ class tac_generator(CompiscriptVisitor):
         var_reg = self.symbol_table.elements[var_name]
         var_type = self.symbol_table.elements[var_name].type
         var_dimension = self.symbol_table.elements[var_name].dim
+        elem = self.symbol_table.elements[var_name]
+        offset = self.memory_allocator(elem.type, getattr(elem, "dim", None), getattr(elem, "size", None))
+        setattr(elem, "offset", offset)
         if ctx.initializer():
             value = self.visit(ctx.initializer())
             if isinstance(ctx.initializer().expression(), CompiscriptParser.ArrayLiteralContext):
@@ -242,12 +283,10 @@ class tac_generator(CompiscriptVisitor):
         after_lbl = f"L{ln}_after"
         self.start = update_lbl
         self.end = after_lbl
-
         try:
             iter_name = ctx.Identifier().getText()
         except Exception:
             iter_name = None
-
         iterable_node = None
         try:
             exprs = ctx.expression()
@@ -257,57 +296,39 @@ class tac_generator(CompiscriptVisitor):
                 iterable_node = exprs
         except Exception:
             iterable_node = None
-
         iterable_val = None
         if iterable_node is not None:
             try:
                 iterable_val = self.visit(iterable_node)
             except Exception:
                 iterable_val = None
-
-
         if not iterable_val:
             return None
-
         idx_temp = self.temporal_generator()
         self.quadruple_table.insert_into_table("=", "0", None, idx_temp)
-
-        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
-
-
+        self.quadruple_table.insert_into_table("label", None, None, start_lbl)
         cmp_temp = self.temporal_generator()
         self.quadruple_table.insert_into_table("<", idx_temp, f"{iterable_val}.size", cmp_temp)
         self.quadruple_table.insert_into_table("if", cmp_temp, "goto", body_lbl)
         self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
-
-    
-        self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
-
-        if iter_name:
-            access = f"{iterable_val}[{idx_temp}]"
-            self.quadruple_table.insert_into_table("=", access, None, iter_name)
-
-  
+        self.quadruple_table.insert_into_table("label", None, None, body_lbl)
         old_table = self.symbol_table
         scope_key = f"foreach_{ln}"
         if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
             self.symbol_table = old_table.scope_map[scope_key]
-
+            self.ensure_scope_allocated(scope_key, self.symbol_table)
+        if iter_name:
+            access = f"{iterable_val}[{idx_temp}]"
+            self.quadruple_table.insert_into_table("=", access, None, iter_name)
         if getattr(ctx, "block", None) and ctx.block():
             self.visit(ctx.block())
-
-
         self.symbol_table = old_table
-
-
-        self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
+        self.quadruple_table.insert_into_table("label", None, None, update_lbl)
         inc_temp = self.temporal_generator()
         self.quadruple_table.insert_into_table("+", idx_temp, "1", inc_temp)
         self.quadruple_table.insert_into_table("=", inc_temp, None, idx_temp)
         self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
-
-
-        self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
+        self.quadruple_table.insert_into_table("label", None, None, after_lbl)
         return None
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
