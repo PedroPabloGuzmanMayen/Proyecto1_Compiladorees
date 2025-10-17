@@ -36,6 +36,18 @@ let hi: integer = 1;
 adios = true;
 
 
+let x: integer = 2;
+switch (x) {
+    case 1: { let a: integer = 10; }
+    case 2: { let b: integer = 20; }
+    default: { let c: integer = 30; }
+}
+
+let i: integer = 0;
+for (i = 0; i < 3; i = i + 1) {
+    let x: integer = i;
+}
+
 
 """
 

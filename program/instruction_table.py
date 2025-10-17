@@ -1,10 +1,17 @@
 class Quadruple():
     def __init__(self):
         self.quadruples = []
-
+        self._temp_counter = 0
 
     def insert_into_table(self, operator, arg1, arg2, temp):
         self.quadruples.append((operator, arg1, arg2, temp))
+
+    def add(self, operator, arg1, arg2, temp):
+        self.insert_into_table(operator, arg1, arg2, temp)
+
+    def new_temp(self):
+        self._temp_counter += 1
+        return f"t{self._temp_counter}"
 
     def write_to_console(self, filename="intermediate_code.txt"):
         with open(filename, "w", encoding="utf-8") as f:
@@ -16,30 +23,19 @@ class Quadruple():
     def write_tac(self, filename="intermediate_code.txt"):
         with open(filename, "w", encoding="utf-8") as f:
             f.write("=== CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===\n\n")
-
             for i, (op, arg1, arg2, res) in enumerate(self.quadruples):
                 line = ""
-
-                # --- Etiquetas ---
-                if op and op.endswith(":"):
-                    line = f"{op}"
-                
-                # --- Asignación simple ---
+                if op == "label":
+                    line = f"{res}"
                 elif op == "=":
                     if arg2 is None:
                         line = f"{res} = {arg1}"
                     else:
                         line = f"{res} = {arg1} {op} {arg2}"
-
-                # --- Operaciones aritméticas o lógicas ---
                 elif op in ["+", "-", "*", "/", ">", "<", ">=", "<=", "==", "!=", "&&", "||"]:
                     line = f"{res} = {arg1} {op} {arg2}"
-
-                # --- Saltos condicionales ---
                 elif op == "if":
                     line = f"if {arg1} goto {res}"
-
-                # --- Saltos incondicionales ---
                 elif op == "goto":
                     if arg1:
                         line = f"goto {arg1}"
@@ -47,8 +43,6 @@ class Quadruple():
                         line = f"goto {res}"
                     else:
                         line = "goto"
-
-                # --- Funciones ---
                 elif op == "func":
                     line = f"func {arg1}, n_params={arg2}, ret_type={res}"
                 elif op == "endfunc":
@@ -62,20 +56,14 @@ class Quadruple():
                         line = f"call {arg1}, {arg2}"
                 elif op == "return":
                     line = f"return {arg1 if arg1 else ''}"
-
-                # --- Clases ---
                 elif op == "class":
                     line = f"class {arg1}"
                 elif op == "endclass":
                     line = "endclass"
                 elif op == "field":
                     line = f"field {arg1}"
-
-                # --- Otros casos (para debug o extensión futura) ---
                 else:
                     line = f"# {op} {arg1 or ''} {arg2 or ''} {res or ''}".strip()
-
-                # --- Escribir línea ---
                 f.write(f"{line}\n")
-
         print(f"[✅] TAC legible guardado en '{filename}'")
+

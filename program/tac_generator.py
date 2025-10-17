@@ -156,7 +156,75 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#forStatement.
     def visitForStatement(self, ctx:CompiscriptParser.ForStatementContext):
-        return self.visitChildren(ctx)
+        ln = self.get_line_number(ctx)
+        start_lbl = f"L{ln}_start"
+        body_lbl = f"L{ln}_body"
+        update_lbl = f"L{ln}_update"
+        after_lbl = f"L{ln}_after"
+
+        if getattr(ctx, "variableDeclaration", None):
+            try:
+                vdecls = ctx.variableDeclaration()
+                if isinstance(vdecls, list):
+                    for v in vdecls:
+                        self.visit(v)
+                else:
+                    self.visit(vdecls)
+            except Exception:
+                pass
+
+        cond_node = None
+        post_node = None
+        num_exprs = 0
+        if getattr(ctx, "expression", None):
+            try:
+                num_exprs = len(ctx.expression())
+                if num_exprs == 3:
+                    init_node = ctx.expression(0)
+                    cond_node = ctx.expression(1)
+                    post_node = ctx.expression(2)
+                    self.visit(init_node)
+                elif num_exprs == 2:
+                    cond_node = ctx.expression(0)
+                    post_node = ctx.expression(1)
+                elif num_exprs == 1:
+                    cond_node = ctx.expression(0)
+            except Exception:
+                pass
+
+        self.quadruple_table.insert_into_table("label", None, None, start_lbl + ":")
+
+        if cond_node is not None:
+            cond_val = self.visit(cond_node)
+            self.quadruple_table.insert_into_table("if", cond_val, "goto", body_lbl)
+            self.quadruple_table.insert_into_table("goto", after_lbl, None, None)
+        else:
+            self.quadruple_table.insert_into_table("goto", body_lbl, None, None)
+
+        self.quadruple_table.insert_into_table("label", None, None, body_lbl + ":")
+
+        old_table = self.symbol_table
+        scope_key = "for_" + str(ln)
+        if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
+            self.symbol_table = old_table.scope_map[scope_key]
+
+        if getattr(ctx, "block", None) and ctx.block():
+            self.visit(ctx.block())
+
+        self.symbol_table = old_table
+
+        self.quadruple_table.insert_into_table("label", None, None, update_lbl + ":")
+        if post_node is not None:
+            self.visit(post_node)
+
+        self.quadruple_table.insert_into_table("goto", start_lbl, None, None)
+
+        self.quadruple_table.insert_into_table("label", None, None, after_lbl + ":")
+
+        self.reset_temporal_counter()
+
+        return None
+
 
 
     # Visit a parse tree produced by CompiscriptParser#foreachStatement.
@@ -189,7 +257,110 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#switchStatement.
     def visitSwitchStatement(self, ctx:CompiscriptParser.SwitchStatementContext):
-        return self.visitChildren(ctx)
+        ln = self.get_line_number(ctx)
+        end_lbl = f"L{ln}_end"
+        switch_node = None
+        try:
+            switch_node = ctx.expression(0)
+        except Exception:
+            switch_node = None
+        switch_val = None
+        if switch_node is not None:
+            switch_val = self.visit(switch_node)
+        cases = []
+        default_case = None
+        if getattr(ctx, "switchCase", None):
+            try:
+                sc_list = ctx.switchCase()
+                if not isinstance(sc_list, list):
+                    sc_list = [sc_list]
+                cases = sc_list
+            except Exception:
+                pass
+        if getattr(ctx, "defaultCase", None):
+            try:
+                dc = ctx.defaultCase()
+                if isinstance(dc, list) and len(dc) > 0:
+                    default_case = dc[0]
+                elif dc:
+                    default_case = dc
+            except Exception:
+                pass
+        case_labels = []
+        for i, case_ctx in enumerate(cases):
+            case_lbl = f"L{ln}_case{i}"
+            case_labels.append(case_lbl)
+            case_val_node = None
+            if getattr(case_ctx, "expression", None):
+                try:
+                    if len(case_ctx.expression()) >= 1:
+                        case_val_node = case_ctx.expression(0)
+                except Exception:
+                    case_val_node = None
+            if case_val_node is None and getattr(case_ctx, "literalExpr", None):
+                try:
+                    if len(case_ctx.literalExpr()) >= 1:
+                        case_val_node = case_ctx.literalExpr(0)
+                except Exception:
+                    case_val_node = None
+            if case_val_node is None or switch_val is None:
+                continue
+            cmp_temp = self.temporal_generator()
+            case_val = self.visit(case_val_node)
+            self.quadruple_table.insert_into_table("==", switch_val, case_val, cmp_temp)
+            self.quadruple_table.insert_into_table("if", cmp_temp, "goto", case_lbl)
+        if default_case is not None:
+            default_lbl = f"L{ln}_default"
+            self.quadruple_table.insert_into_table("goto", default_lbl, None, None)
+        else:
+            self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+        for i, case_ctx in enumerate(cases):
+            case_lbl = case_labels[i]
+            self.quadruple_table.insert_into_table("label", None, None, case_lbl + ":")
+            old_table = self.symbol_table
+            scope_key = f"case_{ln}_{i}"
+            if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
+                self.symbol_table = old_table.scope_map[scope_key]
+            if getattr(case_ctx, "block", None) and case_ctx.block():
+                self.visit(case_ctx.block())
+            else:
+                try:
+                    if getattr(case_ctx, "statement", None):
+                        st = case_ctx.statement()
+                        if isinstance(st, list):
+                            for s in st:
+                                self.visit(s)
+                        else:
+                            self.visit(st)
+                except Exception:
+                    pass
+            self.symbol_table = old_table
+            self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+        if default_case is not None:
+            default_lbl = f"L{ln}_default"
+            self.quadruple_table.insert_into_table("label", None, None, default_lbl + ":")
+            old_table = self.symbol_table
+            scope_key = f"default_{ln}"
+            if hasattr(old_table, "scope_map") and scope_key in old_table.scope_map:
+                self.symbol_table = old_table.scope_map[scope_key]
+            if getattr(default_case, "block", None) and default_case.block():
+                self.visit(default_case.block())
+            else:
+                try:
+                    if getattr(default_case, "statement", None):
+                        st = default_case.statement()
+                        if isinstance(st, list):
+                            for s in st:
+                                self.visit(s)
+                        else:
+                            self.visit(st)
+                except Exception:
+                    pass
+            self.symbol_table = old_table
+            self.quadruple_table.insert_into_table("goto", end_lbl, None, None)
+        self.quadruple_table.insert_into_table("label", None, None, end_lbl + ":")
+        self.reset_temporal_counter()
+        return None
 
 
     # Visit a parse tree produced by CompiscriptParser#switchCase.
