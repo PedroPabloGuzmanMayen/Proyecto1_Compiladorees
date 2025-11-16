@@ -1,31 +1,37 @@
-import time
-
 class RegInfo:
     def __init__(self, name):
         self.name = name
-        self.content = None
+        self.content = None   
         self.last_use = 0
-        self.dirty = False
-        self.home = None
+        self.dirty = False     
+        self.home = None        
 
 class RegisterAllocator:
     def __init__(self):
-        t_regs = [f"$t{i}" for i in range(10)]
-        s_regs = [f"$s{i}" for i in range(8)]
+        t_regs = [f"$t{i}" for i in range(10)]  
+        s_regs = [f"$s{i}" for i in range(8)]    
         self.pool = [RegInfo(r) for r in t_regs + s_regs]
-        self.time = 0
-        self.stack_offset = 0
-        self.spill_map = {}
+        self._time = 0
+        self.stack_offset = 0  
+        self.spill_map = {}     
+        self.reserve_spill_base = 0  
 
     def _touch(self, reginfo):
-        self.time += 1
-        reginfo.last_use = self.time
+        self._time += 1
+        reginfo.last_use = self._time
 
-    def get_reg_for(self, name, prefer_s=False):
+    def find_by_content(self, name):
         for r in self.pool:
             if r.content == name:
                 self._touch(r)
-                return r.name
+                return r
+        return None
+
+    def get_reg_for(self, name, prefer_s=False):
+        r = self.find_by_content(name)
+        if r:
+            return r.name
+        # Buscar registro libre
         for r in self.pool:
             if r.content is None:
                 r.content = name
@@ -41,11 +47,11 @@ class RegisterAllocator:
         self._touch(victim)
         return victim.name
 
-    def free_reg(self, reg_name, store=False):
+    def free_reg_by_name(self, reg_name, store=False):
         for r in self.pool:
             if r.name == reg_name:
                 if store and r.content:
-                    self._spill_to_stack(r.content, reg_name)
+                    self._spill_to_stack(r.content, r.name)
                 r.content = None
                 r.dirty = False
                 r.home = None
@@ -60,7 +66,7 @@ class RegisterAllocator:
                 return
 
     def spill(self, reginfo):
-        if reginfo.content is None:
+        if not reginfo.content:
             reginfo.content = None
             reginfo.dirty = False
             reginfo.home = None
@@ -72,6 +78,8 @@ class RegisterAllocator:
         reginfo.home = None
 
     def _spill_to_stack(self, name, reg_name):
+        if name in self.spill_map:
+            return
         off = self.stack_offset
         self.stack_offset += 4
         self.spill_map[name] = off
@@ -82,3 +90,8 @@ class RegisterAllocator:
     def get_spill_offset(self, name):
         return self.spill_map.get(name)
 
+    def set_spill_base(self, base):
+        self.reserve_spill_base = base
+
+    def total_spill_bytes(self):
+        return self.stack_offset
