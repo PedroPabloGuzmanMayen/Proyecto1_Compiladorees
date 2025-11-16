@@ -18,7 +18,7 @@ class Quadruple():
             f.write("=== CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===\n\n")
             for i, (op, arg1, arg2, res) in enumerate(self.quadruples):
                 f.write(f"{i:03d}: ({op}, {arg1}, {arg2}, {res})\n")
-        print(f"[✅] Código intermedio guardado en '{filename}'")
+        print(f"Código intermedio guardado en '{filename}'")
 
     def write_tac(self, filename="intermediate_code.txt"):
         with open(filename, "w", encoding="utf-8") as f:
@@ -73,4 +73,4 @@ class Quadruple():
                 else:
                     line = f"# {op} {arg1 or ''} {arg2 or ''} {res or ''}".strip()
                 f.write(f"{line}\n")
-        print(f"[✅] TAC legible guardado en '{filename}'")
+        print(f"TAC legible guardado en '{filename}'")
