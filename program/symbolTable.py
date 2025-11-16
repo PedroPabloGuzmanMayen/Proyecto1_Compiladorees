@@ -23,6 +23,7 @@ class Register:
 
         self.dim = dim #Si es 1, es un array 1D, si es 2 es un array 2D
         self.address = 0
+        self.size = 0
 
     def update_memory_address(self, relative_memor_addr):
         self.address = relative_memor_addr

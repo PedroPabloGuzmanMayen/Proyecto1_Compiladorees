@@ -125,17 +125,21 @@ class PythonIDE:
         self.paned_window.pack(fill='both', expand=True)
 
     def create_editor(self):
-        """Create the text editor with console panel below"""
+        """Create the text editor with a resizable console panel below"""
         self.editor_frame = tk.Frame(self.paned_window, bg='#2b2b2b')
-        
-        self.editor_container = tk.Frame(self.editor_frame, bg='#2b2b2b')
-        self.editor_container.pack(fill='both', expand=True)
-        
+
+        # PanedWindow vertical para dividir editor y consola
+        self.vertical_pane = tk.PanedWindow(self.editor_frame, orient='vertical',
+                                            bg='#2b2b2b', sashwidth=5)
+        self.vertical_pane.pack(fill='both', expand=True)
+
+        # --- Editor de texto ---
+        self.editor_container = tk.Frame(self.vertical_pane, bg='#2b2b2b')
         self.line_numbers = tk.Text(self.editor_container, width=4, padx=3, takefocus=0,
-                                border=0, state='disabled', wrap='none',
-                                bg='#3c3c3c', fg='#888888', font=('Consolas', 11))
+                                    border=0, state='disabled', wrap='none',
+                                    bg='#3c3c3c', fg='#888888', font=('Consolas', 11))
         self.line_numbers.pack(side='left', fill='y')
-        
+
         self.text_editor = scrolledtext.ScrolledText(
             self.editor_container,
             wrap='none',
@@ -148,29 +152,29 @@ class PythonIDE:
             borderwidth=0
         )
         self.text_editor.pack(side='left', fill='both', expand=True)
-    
-        # Sincroniza el scroll vertical del editor con la vista de la numeración
+        self.vertical_pane.add(self.editor_container, height=500)  # altura inicial
+
+        # --- Consola (output) ---
+        self.console_frame = tk.Frame(self.vertical_pane, bg='#222222', height=200)
+        tk.Label(self.console_frame, text="Consola (stdout / stderr)", bg='#2b2b2b', fg='white').pack(anchor='w', padx=6, pady=(4,0))
+        self.output_console = scrolledtext.ScrolledText(self.console_frame, height=10,
+                                                        bg='#0f0f0f', fg='#e6e6e6',
+                                                        font=('Consolas', 11),
+                                                        state='disabled')
+        self.output_console.pack(fill='both', expand=True, padx=6, pady=6)
+        self.vertical_pane.add(self.console_frame, height=200)
+
+        # Sincroniza scroll vertical de números de línea
         try:
             self._orig_yscroll = self.text_editor['yscrollcommand']
         except Exception:
             self._orig_yscroll = None
         self.text_editor['yscrollcommand'] = self.on_texteditor_scroll
-    
-        # Rueda del mouse en numeración -> que scrollee el editor
+
         self.line_numbers.bind('<MouseWheel>', lambda e: self.text_editor.event_generate('<MouseWheel>', delta=e.delta))
         self.line_numbers.bind('<Button-4>', lambda e: self.text_editor.yview_scroll(-1, 'units'))
         self.line_numbers.bind('<Button-5>', lambda e: self.text_editor.yview_scroll(1, 'units'))
-        
-        self.console_frame = tk.Frame(self.editor_frame, bg='#222222', height=200)
-        self.console_frame.pack(fill='x', side='bottom')
-        self.console_frame.pack_propagate(False)
-        
-        tk.Label(self.console_frame, text="Consola (stdout / stderr)", bg='#2b2b2b', fg='white').pack(anchor='w', padx=6, pady=(4,0))
-        self.output_console = scrolledtext.ScrolledText(self.console_frame, height=10,
-                                                    bg='#0f0f0f', fg='#e6e6e6', font=('Consolas',11),
-                                                    state='disabled')
-        self.output_console.pack(fill='both', expand=True, padx=6, pady=6)
-        
+
         self.paned_window.add(self.editor_frame, width=800)
 
     def on_texteditor_scroll(self, first, last):

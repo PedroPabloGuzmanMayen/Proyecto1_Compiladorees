@@ -1,83 +1,15 @@
 === CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===
 
-t1 = 1 + 3
-t2 = 5 / 2
-t3 = 4 * t2
-t4 = t1 - t3
-hola = t4
-t1 = 1 < 2
-adios = t1
-t1 = 1 == 2
-t2 = 2 == 1
-t3 = t1 || t2
-t4 = 1 < 3
-t5 = t3 || t4
-hello = t5
-t1 = 1 < 2
-if t1 goto L6
-goto L7
-L6
-hoo = 1
-goto L8
-L7
-mario = 2
-L8
-hi = 1
-adios = true
-x = 2
-t1 = x == 1
-if t1 goto L17_case0
-t2 = x == 2
-if t2 goto L17_case1
-goto L17_default
-L17_case0:
-a = 10
-goto L17_end
-L17_case1:
-b = 20
-goto L17_end
-L17_default:
-c = 30
-goto L17_end
-L17_end:
-i = 0
-L24_start:
-t1 = i < 3
-if t1 goto L24_body
-goto L24_after
-L24_body:
-x = i
-L24_update:
-t1 = i + 1
-i = t1
-goto L24_start
-L24_after:
-arr = [1,2,3]
-t1 = arr[1]
-v = t1
-arr[0] = 10
-arr = [1,2,3]
-sum = 0
-t1 = 0
-L34_start
-t2 = t1 < arr.size
-if t2 goto L34_body
-goto L34_after
-L34_body
-elem = arr[t1]
-t3 = sum + elem
-sum = t3
-L34_update
-t4 = t1 + 1
-t1 = t4
-goto L34_start
-L34_after
-j = 0
-L39_start:
-t1 = j + 1
-j = t1
-L39_cond:
-t2 = j < 2
-if t2 goto L39_start
-goto L39_after
-L39_after:
+func add, n_params=5, ret_type=integer
+param a
+param b
+param c
+param d
+param e
+t1 = a + b
+return t1
+endfunc
+param 1
+param 2
+# CALL_FUNC add 2 t1
+x = t1
