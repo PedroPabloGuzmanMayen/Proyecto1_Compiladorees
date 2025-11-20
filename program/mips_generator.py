@@ -15,9 +15,10 @@ class MIPSGenerator:
         # tomamos el máximo offset de los scopes 
         max_off = 0
         try:
-            for v in (self.offsets.values() if isinstance(self.offsets, dict) else []):
-                if isinstance(v, int) and v > max_off:
-                    max_off = v
+            if isinstance(self.offsets, dict):
+                for v in self.offsets.values():
+                    if isinstance(v, int) and v > max_off:
+                        max_off = v
         except Exception:
             max_off = 0
         # añadir espacio para spills y margen
@@ -49,7 +50,7 @@ class MIPSGenerator:
             pass
         # temporal 
         if isinstance(operand, str) and operand.startswith("t"):
-            # si ya tiene registro, devuélvelo
+            # si ya tiene registro, devolver
             rinfo = self.regs.find_by_content(operand)
             if rinfo:
                 return rinfo.name
@@ -82,6 +83,7 @@ class MIPSGenerator:
             return
         # si destino es temporal, se deja en registro 
         if isinstance(dest, str) and dest.startswith("t"):
+            self.regs.bind(reg, dest)
             self.regs.mark_dirty(reg)
             # el contenido ya se asoció con el temporal por get_reg_for
             return
@@ -99,7 +101,12 @@ class MIPSGenerator:
     def generate(self, out_filename="program.s"):
         stack_size = self._compute_stack_needed()
         # indicar al allocator la base de spills 
-        self.regs.set_spill_base(stack_size)
+        self.regs.set_spill_base(0)
+
+        self._emit(".data")
+        self._emit(".text")
+        self._emit(".globl main")
+        self._emit("main:")
 
         # prologue
         self._emit(f"addi $sp, $sp, -{stack_size}")
@@ -111,8 +118,7 @@ class MIPSGenerator:
                 src_reg = self._load_operand(a1)
                 if src_reg:
                     # si el resultado es una variable o temporal
-                    dest = res
-                    self._store_result(dest, src_reg)
+                    self._store_result(res, src_reg)
 
             elif op in ["+", "-", "*", "/"]:
                 r1 = self._load_operand(a1)
@@ -161,8 +167,15 @@ class MIPSGenerator:
                     self._emit("syscall")
 
             elif op == "label":
-                lbl = res.rstrip(":") if isinstance(res, str) else res
-                self._emit(f"{lbl}:")
+                lbl = None
+                if isinstance(a1, str) and a1:
+                    lbl = a1.rstrip(":")
+                elif isinstance(res, str) and res:
+                    lbl = res.strip(":")
+                if lbl:
+                    self._emit(f"{lbl}:")
+                else:
+                    self._emit("#label sin nombre")
             elif op == "if":
                 # forma: (if, cond, 'goto', Ltrue)
                 cond_reg = self._load_operand(a1)
@@ -176,7 +189,11 @@ class MIPSGenerator:
             else:
                 self._emit(f"# op no manejada: {op} {a1} {a2} {res}")
 
+
+
         self._emit(f"addi $sp, $sp, {stack_size}")
+        self._emit("li $v0, 10")
+        self._emit("syscall")
 
         with open(out_filename, "w", encoding="utf-8") as f:
             for line in self.lines:
