@@ -71,6 +71,13 @@ class tac_generator(CompiscriptVisitor):
 
     # Visit a parse tree produced by CompiscriptParser#program.
     def visitProgram(self, ctx:CompiscriptParser.ProgramContext):
+        scope_key = getattr(self.symbol_table, "scope_name", None) \
+                or getattr(self.symbol_table, "name", None) \
+                or self.symbol_table.scope \
+                or f"scope_{id(self.symbol_table)}"
+
+    # Asignar offsets a TODAS las variables del scope global
+        self.ensure_scope_allocated(scope_key, self.symbol_table)
         for statement in ctx.statement():
             self.visit(statement)
         return None
