@@ -46,6 +46,27 @@ class RegisterAllocator:
         victim.home = name
         self._touch(victim)
         return victim.name
+    
+    def bind(self, reg_name, content_name):
+        """
+        Asocia explícitamente un registro (por nombre) a un contenido lógico (t1, t2, x, etc.).
+        Sirve para casos como t2 = t1 donde ya tenemos un registro con el valor pero
+        queremos que ahora represente a t2.
+        """
+        # Si ya existe algún registro con ese contenido, lo liberamos
+        for r in self.pool:
+            if r.content == content_name and r.name != reg_name:
+                r.content = None
+                r.dirty = False
+                r.home = None
+
+        # Asignamos el contenido al registro que nos interesa
+        for r in self.pool:
+            if r.name == reg_name:
+                r.content = content_name
+                r.home = content_name
+                self._touch(r)
+                return
 
     def free_reg_by_name(self, reg_name, store=False):
         for r in self.pool:
