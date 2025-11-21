@@ -669,7 +669,7 @@ class tac_generator(CompiscriptVisitor):
         # ========================
         # Insertar TAC: FUNC
         # ========================
-        self.quadruple_table.insert_into_table("FUNC", func_name, len(param_names), return_type)
+        self.quadruple_table.insert_into_table("FUNC", None, None, func_name)
 
         for pname in param_names:
             self.quadruple_table.insert_into_table("param", pname, None, None)
