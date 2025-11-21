@@ -92,6 +92,8 @@ class Symbol_table:
             print(f"{indent_str}      Clase Padre: {sym.parent_class}", file=output)
             print(f"{indent_str}      Kind: {sym.kind}", file=output)
             print(f"{indent_str}      Línea: {sym.line_pos}", file=output)
+            print(f"{indent_str}      Padre: {self.parent.scope if self.parent else None}", file=output)
+
         for child in getattr(self, "children", []):
             child.print_table(output=output, indent=indent + 1)
 

@@ -26,10 +26,13 @@ def main(argv):
     tac_gen = tac_generator(analyzer.global_table)
     tac_gen.visit(tree)
 
-    quads = tac_gen.quadruple_table.quadruples
+    quads = tac_gen.quadruple_table
     offsets = tac_gen.offsets
-    print("offsets")
-    print(offsets)
+    quads = quads.group_by_blocks()
+
+    for i, (op, arg1, arg2, res) in enumerate(quads):
+        print(op, arg1, arg2, res)
+
 
     mg = MIPSGenerator(quads, analyzer.global_table, offsets)
     mg.generate("program.s")

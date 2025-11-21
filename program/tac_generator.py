@@ -111,7 +111,7 @@ class tac_generator(CompiscriptVisitor):
             self.visit(statement)
 
         # 5) Cerrar main DESPUÉS de los statements
-        self.quadruple_table.insert_into_table("endfunc", None, None, None)
+        self.quadruple_table.insert_into_table("endfunc", "main", None, None)
 
         return None
 
@@ -693,7 +693,7 @@ class tac_generator(CompiscriptVisitor):
         if ctx.block():
             self.visit(ctx.block())
 
-        self.quadruple_table.insert_into_table("endfunc", None, None, None)
+        self.quadruple_table.insert_into_table("endfunc", func_name, None, None)
 
         # Restaurar
         self.symbol_table = old_table

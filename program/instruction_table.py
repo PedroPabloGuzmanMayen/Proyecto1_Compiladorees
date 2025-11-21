@@ -20,6 +20,33 @@ class Quadruple():
                 f.write(f"{i:03d}: ({op}, {arg1}, {arg2}, {res})\n")
         print(f"Código intermedio guardado en '{filename}'")
 
+    def group_by_blocks(self):
+        scopes = {}
+        scopes["main"] = []
+        scopes["main"].append(self.quadruples[0]) #Añadir la primera instruccion
+        current = ["main"]
+
+        for op, arg1, arg2, res in self.quadruples[1:]:
+
+            if op == "FUNC":
+                current.append(arg1)
+                scopes[arg1] = [(op, arg1, arg2, res)]
+                continue
+            elif op == "endfunc":
+                scopes[arg1].append((op, arg1, arg2, res))
+                current.pop()
+                continue
+
+            scopes[current[-1]].append((op, arg1, arg2, res))
+
+        general =[]
+
+        for i in scopes:
+            general += scopes[i]
+
+        return general
+
+
     def write_tac(self, filename="intermediate_code.txt"):
         with open(filename, "w", encoding="utf-8") as f:
             f.write("=== CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===\n\n")

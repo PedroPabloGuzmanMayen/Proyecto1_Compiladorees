@@ -9,6 +9,8 @@ class MIPSGenerator:
         self.lines = []
         self.pending_args = []
         self.current_function = None
+        self.callers_waiting = []
+        self.pending_funcion = []
 
     def _emit(self, txt):
         self.lines.append(txt)
@@ -133,8 +135,6 @@ class MIPSGenerator:
                 self._emit("sw $fp, 4($sp)")
                 self._emit("addi $fp, $sp, 4")
 
-                # Si quisieras guardar params en memoria, lo haces aquí.
-                # Pero como _load los toma de $a0..$a3, esto es opcional.
                 func_sym = self.sym.lookup_global(a1)
                 if func_sym and hasattr(func_sym, "params") and func_sym.params:
                     for i, pname in enumerate(func_sym.params):
@@ -153,9 +153,11 @@ class MIPSGenerator:
             # ENDFUNC
             # ------------------------------------------------
             elif op == "endfunc":
+                frame = self._frame_size(a1)
+                frame = frame * -1
                 self._emit("lw $ra, -4($fp)")
                 self._emit("lw $fp, 0($fp)")
-                self._emit("addi $sp, $fp, -4")
+                self._emit(f"addi $sp, $fp, -4")
                 self._emit("jr $ra")
 
             # ------------------------------------------------
