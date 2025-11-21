@@ -1,3 +1,3 @@
-for (let i: integer = 0; i < 3; i = i + 1) {
+for (let i: integer = 0; i < 5; i = i + 1) {
   print(i);
 }

@@ -27,11 +27,23 @@ def main(argv):
     tac_gen.visit(tree)
 
     quads = tac_gen.quadruple_table
-    offsets = tac_gen.offsets
-    quads = quads.group_by_blocks()
+    analyzer.global_table.print_table()
+    print("SCOPE MAP")
+    print(analyzer.global_table.scope_map)
 
+    offsets = tac_gen.offsets
+    print(offsets)
+    print("Antes de agrupar")
+    
+    for i, (op, arg1, arg2, res) in enumerate(quads.quadruples):
+        print(op, arg1, arg2, res)
+    
+    print("Luego de agrupar")
+
+    quads = quads.group_by_blocks()
     for i, (op, arg1, arg2, res) in enumerate(quads):
         print(op, arg1, arg2, res)
+    
 
 
     mg = MIPSGenerator(quads, analyzer.global_table, offsets)

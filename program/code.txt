@@ -1,13 +1,37 @@
 === CÓDIGO INTERMEDIO (TAC / Cuádruplos) ===
 
-func main
-a = 10
-func add
-param a
-param b
-t1 = a + b
-return t1
-endfunc
-b = a
-print b
-endfunc
+x = 11
+t1 = x > 10
+if t1 goto L3
+goto L4
+L3
+y = 0
+print "Mayor a 10"
+goto L5
+L4
+z = 7
+print "Menor o igual"
+L5
+L12:
+t1 = x < 5
+if t1 goto L13
+goto L14
+L13:
+w = 2
+t1 = x + 1
+t2 = t1 + w
+x = t2
+goto L12
+L14:
+i = 0
+L17_start:
+t1 = i < 3
+if t1 goto L17_body
+goto L17_after
+L17_body:
+print i
+L17_update:
+t2 = i + 1
+i = t2
+goto L17_start
+L17_after:
