@@ -48,7 +48,7 @@ class Quadruple():
                     else:
                         line = "goto"
                 elif op == "FUNC":
-                    line = f"func {arg1}, n_params={arg2}, ret_type={res}"
+                    line = f"func {arg1}"
                 elif op == "PRINT":
                     line = f"print {res}"
                 elif op == "RETURN":
