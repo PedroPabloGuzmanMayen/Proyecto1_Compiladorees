@@ -69,7 +69,13 @@ class MIPSGenerator:
         sym = self.sym.lookup_global(name)
         if sym:
             reg = self.regs.get_reg_for(name)
-            self._emit(f"lw {reg}, {sym.offset}($fp)")
+            # si esa variable fue spilled, cargar desde su slot
+            if self.regs.has_spill(name):
+                off = self.regs.get_spill_offset(name)
+                real_off = self.regs.reserve_spill_base + off
+                self._emit(f"lw {reg}, {real_off}($fp)")
+            else:
+                self._emit(f"lw {reg}, {sym.address}($fp)")
             return reg
 
         # --- fallback: 0 ---
@@ -87,10 +93,16 @@ class MIPSGenerator:
             self.regs.bind(reg, name)
             return
 
-        sym = self.sym.lookup_global(name)
         if sym:
-            self._emit(f"sw {reg}, {sym.offset}($fp)")
+            if self.regs.has_spill(name):
+                off = self.regs.get_spill_offset(name)
+                real_off = self.regs.reserve_spill_base + off
+                self._emit(f"sw {reg}, {real_off}($fp)")
+            else:
+                self._emit(f"sw {reg}, {sym.address}($fp)")
+            self.regs.mark_dirty(reg)
             return
+
 
         self._emit(f"# ERROR: variable desconocida {name}")
 
@@ -126,15 +138,11 @@ class MIPSGenerator:
             if op == "FUNC":
                 self.current_function = a1
                 frame = self._frame_size(a1)
-
                 self._emit(f"{a1}:")
                 self._emit(f"addi $sp, $sp, -{frame}")
-                self._emit("sw $ra, 0($sp)")
-                self._emit("sw $fp, 4($sp)")
-                self._emit("addi $fp, $sp, 4")
-
-                # Si quisieras guardar params en memoria, lo haces aquí.
-                # Pero como _load los toma de $a0..$a3, esto es opcional.
+                self._emit(f"sw $ra, 0($sp)")
+                self._emit(f"sw $fp, 4($sp)")
+                self._emit(f"move $fp, $sp")
                 func_sym = self.sym.lookup_global(a1)
                 if func_sym and hasattr(func_sym, "params") and func_sym.params:
                     for i, pname in enumerate(func_sym.params):
@@ -142,22 +150,24 @@ class MIPSGenerator:
                         if not psym:
                             continue
                         if i < 4:
-                            self._emit(f"sw $a{i}, {psym.offset}($fp)")
+                            self._emit(f"sw $a{i}, {psym.address}($fp)")
                         else:
-                            off = 4 + 4 * (i - 4)
-                            tmp = self.regs.get_reg_for(f"arg{i}")
-                            self._emit(f"lw {tmp}, {off}($sp)")
-                            self._emit(f"sw {tmp}, {psym.offset}($fp)")
-
+                            self._emit(f"# PARAM {pname} en posicion >4: implementar convención si la necesitas")
+        
             # ------------------------------------------------
             # ENDFUNC
             # ------------------------------------------------
             elif op == "endfunc":
-                self._emit("lw $ra, -4($fp)")
-                self._emit("lw $fp, 0($fp)")
-                self._emit("addi $sp, $fp, -4")
+                frame = self._frame_size(self.current_function) if self.current_function else 0
+                self._emit("move $sp, $fp")
+                self._emit("lw $fp, 4($sp)")
+                self._emit("lw $ra, 0($sp)")
+                self._emit(f"addi $sp, $sp, {frame}")
                 self._emit("jr $ra")
-
+                self._emit("nop")
+                self.current_function = None
+            
+            
             # ------------------------------------------------
             # ASSIGN (=)
             # ------------------------------------------------
@@ -270,11 +280,14 @@ class MIPSGenerator:
                 if a1:
                     r = self._load(a1)
                     self._emit(f"move $v0, {r}")
-
-                self._emit("lw $ra, -4($fp)")
-                self._emit("lw $fp, 0($fp)")
-                self._emit("addi $sp, $fp, -4")
+                frame = self._frame_size(self.current_function) if self.current_function else 0
+                self._emit("move $sp, $fp")
+                self._emit("lw $fp, 4($sp)")
+                self._emit("lw $ra, 0($sp)")
+                self._emit(f"addi $sp, $sp, {frame}")
                 self._emit("jr $ra")
+                self._emit("nop")
+                self.current_function = None
 
         # =================================================
         # WRITE FILE
