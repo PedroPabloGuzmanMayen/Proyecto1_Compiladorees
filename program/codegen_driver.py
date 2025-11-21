@@ -28,6 +28,8 @@ def main(argv):
 
     quads = tac_gen.quadruple_table.quadruples
     offsets = tac_gen.offsets
+    print("offsets")
+    print(offsets)
 
     mg = MIPSGenerator(quads, analyzer.global_table, offsets)
     mg.generate("program.s")
