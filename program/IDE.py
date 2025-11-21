@@ -12,7 +12,6 @@ from CompiscriptLexer import CompiscriptLexer
 from CompiscriptParser import CompiscriptParser
 from semantic_analizer import semantic_analyzer
 from tac_generator import tac_generator
-
 class PythonIDE:
     def __init__(self, root):
         self.root = root
@@ -42,7 +41,6 @@ class PythonIDE:
         
         # Set initial directory
         self.refresh_file_manager()
-
     # ---------------- Icon helper ----------------
     def load_icon(self, name, size=(16,16)):
         if name in self.icon_cache:
@@ -58,7 +56,6 @@ class PythonIDE:
                 except Exception:
                     return None
         return None
-
     # ---------------- UI creation ----------------
     def create_header(self):
         """Create the header with tool buttons """
@@ -111,10 +108,23 @@ class PythonIDE:
             )
         self.run_button.pack(side='left', padx=2)
         
+        # Botón MIPS: ejecuta python3 codegen_driver.py archivo.cps
+        mips_icon = self.load_icon('mips')
+        if mips_icon:
+            self.mips_button = tk.Button(
+                self.header_frame, image=mips_icon, text='MIPS', compound='left',
+                command=self.run_mips_codegen, bg='#8b5cf6', fg='white', relief='flat', padx=10
+            )
+        else:
+            self.mips_button = tk.Button(
+                self.header_frame, text="⚙ MIPS",
+                command=self.run_mips_codegen, bg='#8b5cf6', fg='white', relief='flat', padx=10
+            )
+        self.mips_button.pack(side='left', padx=2)
+        
         self.file_label = tk.Label(self.header_frame, text="Sin título",
                                 bg='#3c3c3c', fg='white', font=('Arial', 10))
         self.file_label.pack(side='right', padx=10)
-
     def create_main_layout(self):
         """Create the main layout with paned window"""
         self.main_frame = tk.Frame(self.root, bg='#2b2b2b')
@@ -123,7 +133,6 @@ class PythonIDE:
         self.paned_window = tk.PanedWindow(self.main_frame, orient='horizontal', 
                                           bg='#2b2b2b', sashwidth=5)
         self.paned_window.pack(fill='both', expand=True)
-
     def create_editor(self):
         """Create the text editor with console panel below"""
         self.editor_frame = tk.Frame(self.paned_window, bg='#2b2b2b')
@@ -172,7 +181,6 @@ class PythonIDE:
         self.output_console.pack(fill='both', expand=True, padx=6, pady=6)
         
         self.paned_window.add(self.editor_frame, width=800)
-
     def on_texteditor_scroll(self, first, last):
         try:
             self.line_numbers.yview_moveto(first)
@@ -183,7 +191,6 @@ class PythonIDE:
                 self.text_editor.vbar.set(first, last)
         except Exception:
             pass
-
     def create_file_manager(self):
         """Create the file manager"""
         self.file_frame = tk.Frame(self.paned_window, bg='#2b2b2b')
@@ -223,7 +230,6 @@ class PythonIDE:
         
         # Add to paned window
         self.paned_window.add(self.file_frame, width=300)
-
     def create_status_bar(self):
         """Create the status bar"""
         self.status_bar = tk.Frame(self.root, bg='#3c3c3c', height=25)
@@ -238,7 +244,6 @@ class PythonIDE:
         self.cursor_label = tk.Label(self.status_bar, text="Línea: 1, Columna: 1", 
                                     bg='#3c3c3c', fg='white', font=('Arial', 9))
         self.cursor_label.pack(side='right', padx=10, pady=2)
-
     # ---------------- Events & file manager ----------------
     def bind_events(self):
         """Bind keyboard and mouse events"""
@@ -255,11 +260,11 @@ class PythonIDE:
         self.root.bind('<Control-o>', lambda e: self.open_file())
         self.root.bind('<Control-s>', lambda e: self.save_file())
         self.root.bind('<Control-Shift-S>', lambda e: self.save_as_file())
-        self.root.bind('<F5>', lambda e: self.run_current_python_with_cps())  # ← aquí el cambio
+        self.root.bind('<F5>', lambda e: self.run_current_python_with_cps())
+        self.root.bind('<F6>', lambda e: self.run_mips_codegen())  # Atajo F6 para MIPS
         
         # Window close event
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-
     def refresh_file_manager(self):
         """Refresh the file manager tree"""
         # Clear existing items
@@ -295,7 +300,6 @@ class PythonIDE:
         
         except PermissionError:
             self.status_label.config(text="Error: Sin permisos para acceder al directorio")
-
     def on_file_double_click(self, event):
         """Handle file tree double click"""
         selection = self.file_tree.selection()
@@ -308,7 +312,6 @@ class PythonIDE:
                 self.refresh_file_manager()
             else:
                 self.open_specific_file(item_path)
-
     # ---------------- File operations ----------------
     def new_file(self):
         """Create a new file"""
@@ -322,7 +325,6 @@ class PythonIDE:
         self.update_title()
         self.update_line_numbers()
         self.status_label.config(text="Nuevo archivo creado")
-
     def open_file(self):
         """Open a file dialog to select and open a file"""
         if not self.file_saved:
@@ -341,7 +343,6 @@ class PythonIDE:
         
         if file_path:
             self.open_specific_file(file_path)
-
     def open_specific_file(self, file_path):
         """Open a specific file"""
         try:
@@ -361,7 +362,6 @@ class PythonIDE:
             
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo abrir el archivo:\n{str(e)}")
-
     def save_file(self):
         """Save the current file"""
         if self.current_file:
@@ -378,7 +378,6 @@ class PythonIDE:
                 messagebox.showerror("Error", f"No se pudo guardar el archivo:\n{str(e)}")
         else:
             self.save_as_file()
-
     def save_as_file(self):
         """Save the file with a new name"""
         file_path = filedialog.asksaveasfilename(
@@ -406,7 +405,6 @@ class PythonIDE:
                 
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo guardar el archivo:\n{str(e)}")
-
     def cut_text(self):
         """Cut selected text"""
         try:
@@ -414,7 +412,6 @@ class PythonIDE:
             self.status_label.config(text="Texto cortado")
         except:
             pass
-
     def copy_text(self):
         """Copy selected text"""
         try:
@@ -422,7 +419,6 @@ class PythonIDE:
             self.status_label.config(text="Texto copiado")
         except:
             pass
-
     def paste_text(self):
         """Paste text from clipboard"""
         try:
@@ -430,27 +426,22 @@ class PythonIDE:
             self.status_label.config(text="Texto pegado")
         except:
             pass
-
     # ---------------- Running code ----------------
     def run_current_python_with_cps(self):
         """Ejecuta código Compiscript (.cps) directamente desde el editor."""
         if not self.current_file:
             messagebox.showwarning("Sin archivo", "Abre o guarda un archivo antes de ejecutar.")
             return
-
         if not self.current_file.lower().endswith('.cps'):
             messagebox.showwarning("Archivo no Compiscript", "El archivo activo no es .cps")
             return
-
         # Guardar antes de ejecutar
         if not self.file_saved:
             self.save_file()
             if not self.file_saved:
                 return
-
         # Leer el contenido actual del editor
         code_snippet = self.text_editor.get(1.0, tk.END + "-1c")
-
         # Ejecutar en un hilo para no congelar la interfaz
         def target():
             self.run_button.config(state='disabled')
@@ -458,9 +449,7 @@ class PythonIDE:
                 self.run_cps_code(code_snippet)
             finally:
                 self.run_button.config(state='normal')
-
         threading.Thread(target=target, daemon=True).start()
-
     def run_cps_code(self, code_snippet: str):
         """Ejecuta código Compiscript y muestra el TAC resultante."""
         try:
@@ -468,22 +457,17 @@ class PythonIDE:
             self.output_console.configure(state='normal')
             self.output_console.delete(1.0, tk.END)
             self.output_console.configure(state='disabled')
-
             self.append_console("=== Generando código intermedio (TAC) ===\n")
-
             input_stream = InputStream(code_snippet)
             lexer = CompiscriptLexer(input_stream)
             stream = CommonTokenStream(lexer)
             parser = CompiscriptParser(stream)
             tree = parser.program()
-
             analyzer = semantic_analyzer()
             analyzer.visit(tree)
-
             intermediate_code_generator = tac_generator(analyzer.global_table)
             intermediate_code_generator.visit(tree)
             intermediate_code_generator.quadruple_table.write_tac("code.txt")
-
             # Mostrar el contenido de code.txt en la consola
             if os.path.exists("code.txt"):
                 with open("code.txt", "r", encoding="utf-8") as f:
@@ -493,12 +477,68 @@ class PythonIDE:
                 self.append_console("\n=== Fin de la ejecución ===\n")
             else:
                 self.append_console("Error: no se generó code.txt\n")
-
         except Exception as e:
             self.append_console(f"\nError al ejecutar código Compiscript:\n{e}\n")
-
-
-
+    def run_mips_codegen(self):
+        """Ejecuta python3 codegen_driver.py archivo.cps para generar código MIPS."""
+        if not self.current_file:
+            messagebox.showwarning("Sin archivo", "Abre o guarda un archivo .cps antes de generar MIPS.")
+            return
+        if not self.current_file.lower().endswith('.cps'):
+            messagebox.showwarning("Archivo no Compiscript", "El archivo activo no es .cps")
+            return
+        # Guardar antes de ejecutar
+        if not self.file_saved:
+            self.save_file()
+            if not self.file_saved:
+                return
+        
+        # Buscar codegen_driver.py en el directorio del IDE o en el directorio actual
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        codegen_driver = os.path.join(script_dir, 'codegen_driver.py')
+        if not os.path.exists(codegen_driver):
+            codegen_driver = os.path.join(self.current_directory, 'codegen_driver.py')
+        if not os.path.exists(codegen_driver):
+            codegen_driver = 'codegen_driver.py'  # Intentar en PATH
+        
+        python_exe = shutil.which('python3') or shutil.which('python')
+        if not python_exe:
+            messagebox.showerror("Error", "No se encontró python3 en PATH.")
+            return
+        
+        cmd = [python_exe, codegen_driver, self.current_file]
+        
+        def target():
+            self.mips_button.config(state='disabled')
+            try:
+                # Limpiar consola
+                self.output_console.configure(state='normal')
+                self.output_console.delete(1.0, tk.END)
+                self.output_console.configure(state='disabled')
+                self.append_console(f"=== Generando código MIPS ===\n")
+                self.append_console(f"Comando: {' '.join(cmd)}\n\n")
+                
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    cwd=self.current_directory
+                )
+                self.run_process = proc
+                for line in iter(proc.stdout.readline, ''):
+                    if not line:
+                        break
+                    self.append_console(line)
+                proc.wait()
+                self.append_console(f"\n=== Proceso MIPS finalizado (exit {proc.returncode}) ===\n")
+            except Exception as e:
+                self.append_console(f"\nError al generar código MIPS:\n{e}\n")
+            finally:
+                self.mips_button.config(state='normal')
+                self.run_process = None
+        
+        threading.Thread(target=target, daemon=True).start()
     def append_console(self, text):
         """Append text to the output_console in a thread-safe manner."""
         def _append():
@@ -508,7 +548,6 @@ class PythonIDE:
             self.output_console.configure(state='disabled')
         # schedule on main thread
         self.root.after(0, _append)
-
     def run_local_python(self, file_path):
         """Run a python file locally and stream output to console."""
         python_exe = shutil.which('python3') or shutil.which('python')
@@ -534,7 +573,6 @@ class PythonIDE:
                 self.run_button.config(state='normal')
                 self.run_process = None
         threading.Thread(target=target, daemon=True).start()
-
     def run_in_docker(self):
         docker_exe = shutil.which('docker')
         if not docker_exe:
@@ -585,14 +623,12 @@ class PythonIDE:
                 self.run_process = None
         
         threading.Thread(target=target, daemon=True).start()
-
     # ---------------- Editor helpers ----------------
     def on_text_change(self, event=None):
         """Handle text changes"""
         self.file_saved = False
         self.update_title()
         self.update_line_numbers()
-
     def update_line_numbers(self):
         """Update line numbers"""
         self.line_numbers.config(state='normal')
@@ -606,13 +642,11 @@ class PythonIDE:
             self.line_numbers.insert(tk.END, f"{i:>3}\n")
         
         self.line_numbers.config(state='disabled')
-
     def update_cursor_position(self, event=None):
         """Update cursor position in status bar"""
         cursor_pos = self.text_editor.index(tk.INSERT)
         line, column = cursor_pos.split('.')
         self.cursor_label.config(text=f"Línea: {line}, Columna: {int(column) + 1}")
-
     def update_title(self):
         """Update window title and file label"""
         if self.current_file:
@@ -630,7 +664,6 @@ class PythonIDE:
         
         self.root.title(title)
         self.file_label.config(text=filename)
-
     def ask_save_changes(self):
         """Ask user if they want to save changes"""
         result = messagebox.askyesnocancel(
@@ -645,7 +678,6 @@ class PythonIDE:
             return True
         else:  # Cancel
             return False
-
     def on_closing(self):
         """Handle window closing"""
         if not self.file_saved:
@@ -653,7 +685,6 @@ class PythonIDE:
                 self.root.destroy()
         else:
             self.root.destroy()
-
 def main():
     """Main function to run the IDE"""
     root = tk.Tk()
@@ -668,12 +699,12 @@ def main():
     print("  - Editor de texto con números de línea")
     print("  - Explorador de archivos integrado")
     print("  - Botones de herramientas (Nuevo, Abrir, Guardar, etc.)")
-    print("  - Atajos de teclado (Ctrl+N, Ctrl+O, Ctrl+S, F5)")
+    print("  - Atajos de teclado (Ctrl+N, Ctrl+O, Ctrl+S, F5, F6)")
     print("  - Ejecución de archivos Python y ejecución dentro de Docker para Compiscript")
+    print("  - Generación de código MIPS con botón dedicado (F6)")
     print("  - Consola integrada (stdout/stderr) con streaming")
     print("  - Tema oscuro")
     
     root.mainloop()
-
 if __name__ == "__main__":
     main()
